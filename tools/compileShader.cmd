@@ -1,0 +1,1 @@
+"%DXSDK_DIR%\Utilities\bin\x64\fxc" /T %1 /E %2 /O3 "%3" /Fo "%4" /nologo /Qstrip_reflect /Qstrip_debug
