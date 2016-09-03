@@ -105,7 +105,7 @@ bool inject(const std::string& arg)
 	const DWORD threadId = getThreadIdFromProcName(procName);
 
 	if (!threadId) {
-		printf("Process not found");
+		printf("%s process not found\n", procName);
 		getchar();
 		return false; 
 	}

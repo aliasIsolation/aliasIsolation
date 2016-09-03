@@ -49,7 +49,7 @@ BOOL WINAPI CreateProcessW_hook(
 )
 {
 	// HACK: This depends on whether the target app was compiled with UNICODE. Here we assume it wasn't.
-	std::wstring appName = (wchar_t*)lpApplicationName;
+	std::wstring appName = lpApplicationName ? (wchar_t*)lpApplicationName : L"";
 	std::transform(appName.begin(), appName.end(), appName.begin(), ::towlower);
 
 	//MessageBoxW(NULL, (LPCWSTR)appName.c_str(), (LPCWSTR)lpApplicationName, NULL);
