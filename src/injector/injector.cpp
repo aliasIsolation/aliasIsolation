@@ -193,14 +193,22 @@ bool isAlreadyInjected(const HANDLE proc, const std::string& dllPath)
 bool getAiSteamInstallPath(std::string *const result)
 {
 	HKEY hKey;
+	const char* keysToTry[] = {
+		"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Steam App 214490",
+		"SOFTWARE\\Wow6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Steam App 214490",
+	};
 
-	if (ERROR_SUCCESS == RegOpenKeyExA(HKEY_LOCAL_MACHINE, "SOFTWARE\\Wow6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Steam App 214490", 0, KEY_READ, &hKey))
+	for (const char* keyName : keysToTry)
 	{
-		char	buf[MAX_PATH];
-		DWORD	bufSize = sizeof(buf);
-		if (ERROR_SUCCESS == RegQueryValueExA(hKey, "InstallLocation", 0, nullptr, (LPBYTE)buf, &bufSize)) {
-			*result = buf;
-			return true;
+		LSTATUS status = RegOpenKeyExA(HKEY_LOCAL_MACHINE, keyName, 0, KEY_QUERY_VALUE | KEY_WOW64_64KEY, &hKey);
+		if (ERROR_SUCCESS == status)
+		{
+			char	buf[MAX_PATH];
+			DWORD	bufSize = sizeof(buf);
+			if (ERROR_SUCCESS == RegQueryValueExA(hKey, "InstallLocation", 0, nullptr, (LPBYTE)buf, &bufSize)) {
+				*result = buf;
+				return true;
+			}
 		}
 	}
 
