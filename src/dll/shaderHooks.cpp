@@ -137,9 +137,7 @@ HRESULT WINAPI CreatePixelShader_hook(void* thisptr, const char* bytecode, SIZE_
 		}
 	}
 
-	const HRESULT hres = g_d3dHookOrig.CreatePixelShader(thisptr, bytecode, bytecodeLength, classLinkage, pixelShader);
-
-	return hres;
+	return res;
 }
 
 // ----------------------------------------------------------------------------------------------------------------
@@ -177,7 +175,5 @@ HRESULT WINAPI CreateVertexShader_hook(void* thisptr, const char* bytecode, SIZE
 		}
 	}
 
-	const HRESULT hres = g_d3dHookOrig.CreateVertexShader(thisptr, bytecode, bytecodeLength, classLinkage, vertexShader);
-
-	return hres;
+	return res;
 }

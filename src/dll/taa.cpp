@@ -4,6 +4,7 @@
 #include <functional>
 
 #include <d3d11.h>
+#include <atlbase.h>
 #include "glm/glm.hpp"
 #include "MinHook.h"
 
@@ -152,21 +153,21 @@ void renderTaa(ID3D11DeviceContext *const context, ID3D11ShaderResourceView* mai
 		context->Unmap(cb, 0);
 	}
 
-	ID3D11ShaderResourceView* resources[] = {
+	CComPtr<ID3D11ShaderResourceView> resources[] = {
 		mainTexView,
 		srvFromTex(accumTex[1 - accumIdx]),
 		g_alienResources.velocitySrv,
 		srvFromTex(taaLut)
 	};
 
-	ID3D11UnorderedAccessView* uavs[] = {
+	CComPtr<ID3D11UnorderedAccessView> uavs[] = {
 		uavFromTex(accumTex[accumIdx])
 	};
 
-	context->CSSetUnorderedAccessViews(0, sizeof(uavs)/sizeof(*uavs), uavs, nullptr);
+	context->CSSetUnorderedAccessViews(0, sizeof(uavs)/sizeof(*uavs), &uavs[0].p, nullptr);
 	context->CSSetShader(ShaderRegistry::getCs(taaCsHandle), nullptr, 0);
 	context->CSSetConstantBuffers(0, 1, &cb);
-	context->CSSetShaderResources(0, sizeof(resources)/sizeof(*resources), resources);
+	context->CSSetShaderResources(0, sizeof(resources)/sizeof(*resources), &resources[0].p);
 	context->CSSetSamplers(0, 1, &linearSampler);
 	context->CSSetSamplers(1, 1, &pointSampler);
 
@@ -176,7 +177,7 @@ void renderTaa(ID3D11DeviceContext *const context, ID3D11ShaderResourceView* mai
 	context->Dispatch((g_frameConstants.screenWidth + groupSizeX - 1) / groupSizeX, (g_frameConstants.screenHeight + groupSizeY - 1) / groupSizeY, 1);
 
 	{
-		ID3D11Resource* res = nullptr;
+		CComPtr<ID3D11Resource> res = nullptr;
 		mainTexView->GetResource(&res);
 		context->CopyResource(res, accumTex[accumIdx]);
 	}
@@ -188,7 +189,7 @@ void renderTaa(ID3D11DeviceContext *const context, ID3D11ShaderResourceView* mai
 void insertRendering(ID3D11DeviceContext *const context, const std::function<void(ID3D11DeviceContext*)>& fn) {
 	fn(g_deferred_context);
 
-	ID3D11CommandList* commandList = nullptr;
+	CComPtr<ID3D11CommandList> commandList = nullptr;
 	g_deferred_context->FinishCommandList(true, &commandList);
 	context->ExecuteCommandList(commandList, true);
 }
@@ -202,11 +203,11 @@ bool taaOnDraw(ID3D11DeviceContext* context, ID3D11VertexShader* currentVs, ID3D
 	||	!g_frameConstants.taaRanThisFrame && g_alienResources.rgbmEncodeVs == currentVs && g_alienResources.rgbmEncodePs == currentPs;
 
 	if (shouldRunTaa) {
-		ID3D11ShaderResourceView* mainTexView = nullptr;
-		context->PSGetShaderResources(0, 1, &mainTexView);
+		CComPtr<ID3D11ShaderResourceView> mainTexView = nullptr;
+		context->PSGetShaderResources(0, 1, &mainTexView.p);
 
 		if (mainTexView) {
-			ID3D11Texture2D *const mainTex = texFromView(mainTexView);
+			CComPtr<ID3D11Texture2D> const mainTex = texFromView(mainTexView);
 			D3D11_TEXTURE2D_DESC mainTexDesc;
 			mainTex->GetDesc(&mainTexDesc);
 
@@ -288,15 +289,13 @@ HRESULT WINAPI Unmap_hook(
     _In_  ID3D11Resource *pResource,
     _In_  UINT Subresource)
 {
-	ID3D11RenderTargetView* rtv;
+	CComPtr<ID3D11RenderTargetView> rtv;
 	context->OMGetRenderTargets(1, &rtv, nullptr);
-	if (rtv) rtv->Release();
 
-	ID3D11Resource* rtRes = nullptr;
+	CComPtr<ID3D11Resource> rtRes = nullptr;
 	if (rtv) rtv->GetResource(&rtRes);
-	if (rtRes) rtRes->Release();
 
-	ID3D11Texture2D *const rtTex = (ID3D11Texture2D*)rtRes;
+	ID3D11Texture2D *const rtTex = (ID3D11Texture2D*)rtRes.p;
 	D3D11_TEXTURE2D_DESC rtTexDesc;
 
 	if (rtTex) rtTex->GetDesc(&rtTexDesc);
@@ -305,9 +304,8 @@ HRESULT WINAPI Unmap_hook(
 	D3D11_VIEWPORT viewport;
 	context->RSGetViewports(&numViewports, &viewport);
 
-	ID3D11BlendState* blendState = nullptr;
+	CComPtr<ID3D11BlendState> blendState = nullptr;
 	context->OMGetBlendState(&blendState, nullptr, nullptr);
-	if (blendState) blendState->Release();
 
 	D3D11_BLEND_DESC blendDesc;
 	if (blendState) {
@@ -401,8 +399,10 @@ HRESULT WINAPI Unmap_hook(
 		if (g_alienResources.cbDefaultPSC == pResource && g_alienResources.mappedCbDefaultPSC) {
 			CbDefaultPSC *const psc = g_alienResources.mappedCbDefaultPSC;
 
-			psc->MotionBlurCurrInvViewProjection = g_frameConstants.currInvViewProjNoJitter;
-			psc->MotionBlurPrevViewProjection = g_frameConstants.prevViewProjNoJitter;
+			// Multiply the two matrices used in velocity vector calculation.
+			// We can do it on the CPU using doubles, whereas the GPU uses floats, and loses a lot of precision.
+			psc->MotionBlurCurrInvViewProjection = g_frameConstants.currInvViewProjNoJitter * glm::dmat4(g_frameConstants.prevViewProjNoJitter);
+			psc->MotionBlurPrevViewProjection = glm::mat4();
 
 			const glm::vec2 sampleOffset = getFrameJitter();
 

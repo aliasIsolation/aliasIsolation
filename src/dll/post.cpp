@@ -21,8 +21,8 @@ ShaderHandle				g_sharpenPsHandle;
 
 namespace
 {
-	ID3D11Texture2D*	g_bloomMergeTex = nullptr;
-	ID3D11Resource*		g_origBloomMergeResource = nullptr;
+	CComPtr<ID3D11Texture2D>	g_bloomMergeTex = nullptr;
+	CComPtr<ID3D11Resource>		g_origBloomMergeResource = nullptr;
 }
 
 
@@ -97,12 +97,12 @@ void modifySharpenPass(ID3D11DeviceContext *const context)
 		context->Unmap(cb, 0);
 	}
 
-	ID3D11ShaderResourceView* resources[] = {
+	CComPtr<ID3D11ShaderResourceView> resources[] = {
 		logoTex ? srvFromTex(logoTex) : nullptr,
 	};
 
 	context->PSSetConstantBuffers(10, 1, &cb);
-	context->PSSetShaderResources(20, sizeof(resources)/sizeof(*resources), resources);
+	context->PSSetShaderResources(20, sizeof(resources)/sizeof(*resources), &resources[0].p);
 }
 
 
@@ -135,16 +135,14 @@ void modifyBloomMerge(ID3D11DeviceContext *const context)
 		}
 	}
 
-	ID3D11RenderTargetView* origRtv = nullptr;
+	CComPtr<ID3D11RenderTargetView> origRtv = nullptr;
 	context->OMGetRenderTargets(1, &origRtv, nullptr);
 	if (origRtv) {
 		origRtv->GetResource(&g_origBloomMergeResource);
-		origRtv->Release();
-		if (g_origBloomMergeResource) g_origBloomMergeResource->Release();
 	}
 
-	ID3D11RenderTargetView* rtvs[] = { rtvFromTex(g_bloomMergeTex) };
-	context->OMSetRenderTargets(1, rtvs, nullptr);
+	CComPtr<ID3D11RenderTargetView> rtvs[] = { rtvFromTex(g_bloomMergeTex) };
+	context->OMSetRenderTargets(1, &rtvs[0].p, nullptr);
 
 	D3D11_VIEWPORT viewport;
 	ZeroMemory(&viewport, sizeof(viewport));
@@ -158,16 +156,16 @@ void modifyBloomMerge(ID3D11DeviceContext *const context)
 void modifyGlareForPost(ID3D11DeviceContext *const context)
 {
 	enum { NumSrvs = 16 };
-	ID3D11ShaderResourceView* origSrvs[NumSrvs] = { nullptr };
+	CComPtr<ID3D11ShaderResourceView> origSrvs[NumSrvs] = { nullptr };
 
-	context->PSGetShaderResources(0, NumSrvs, origSrvs);
+	context->PSGetShaderResources(0, NumSrvs, &origSrvs[0].p);
 	for (int i = 0; i < NumSrvs; ++i) {
-		ID3D11Resource* res = nullptr;
+		CComPtr<ID3D11Resource> res = nullptr;
 		if (origSrvs[i]) {
 			origSrvs[i]->GetResource(&res);
 			if (res && res == g_origBloomMergeResource) {
-				ID3D11ShaderResourceView* srvs[] = { srvFromTex(g_bloomMergeTex) };
-				context->PSSetShaderResources(i, 1, srvs);
+				CComPtr<ID3D11ShaderResourceView> srvs[] = { srvFromTex(g_bloomMergeTex) };
+				context->PSSetShaderResources(i, 1, &srvs[0].p);
 			}
 		}
 	}
@@ -208,24 +206,23 @@ bool caOnDraw(ID3D11DeviceContext* context, ID3D11VertexShader* currentVs, ID3D1
 			}
 		}
 
-		ID3D11RenderTargetView* targetRtv = nullptr;
-		context->OMGetRenderTargets(1, &targetRtv, nullptr);
-		if (targetRtv) targetRtv->Release();
+		CComPtr<ID3D11RenderTargetView> targetRtv = nullptr;
+		context->OMGetRenderTargets(1, &targetRtv.p, nullptr);
 
-		ID3D11RenderTargetView* tempRtv = rtvFromTex(tempTex);
-		context->OMSetRenderTargets(1, &tempRtv, nullptr);
+		CComPtr<ID3D11RenderTargetView> tempRtv = rtvFromTex(tempTex);
+		context->OMSetRenderTargets(1, &tempRtv.p, nullptr);
 
 		// Draw the sharpen pass now into the temporary RT
 		origDrawFn();
 
-		context->OMSetRenderTargets(1, &targetRtv, nullptr);
+		context->OMSetRenderTargets(1, &targetRtv.p, nullptr);
 
-		ID3D11ShaderResourceView* srvs[] = {
+		CComPtr<ID3D11ShaderResourceView> srvs[] = {
 			srvFromTex(tempTex)
 		};
 
 		context->PSSetShader(ShaderRegistry::getPs(chromaticAberrationPsHandle), nullptr, 0);
-		context->PSSetShaderResources(0, 1, srvs);
+		context->PSSetShaderResources(0, 1, &srvs[0].p);
 
 		ProfileBlock profile("ca");
 		context->Draw(3, 0);

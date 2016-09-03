@@ -3,6 +3,7 @@
 #include <windows.h>
 #include <d3d11.h>
 #include <cstdio>
+#include <atlbase.h>
 
 #include "glm/glm.hpp"
 #include "glm/gtx/transform.hpp"
@@ -90,10 +91,10 @@ HRESULT WINAPI Draw_hook(
 	HRESULT result;
 	auto origDrawFn = [&]() { result = g_d3dHookOrig.Draw(context, VertexCount, StartVertexLocation); };
 
-	ID3D11VertexShader*	currentVs = nullptr;
-	ID3D11PixelShader*	currentPs = nullptr;
-	context->VSGetShader(&currentVs, nullptr, nullptr);
-	context->PSGetShader(&currentPs, nullptr, nullptr);
+	CComPtr<ID3D11VertexShader> currentVs = nullptr;
+	CComPtr<ID3D11PixelShader>	currentPs = nullptr;
+	context->VSGetShader(&currentVs.p, nullptr, nullptr);
+	context->PSGetShader(&currentPs.p, nullptr, nullptr);
 
 	taaOnDraw(context, currentVs, currentPs);
 
@@ -127,15 +128,17 @@ void STDMETHODCALLTYPE PSSetShader_hook(
 
 	if (g_alienResources.cameraMotionPs == pPixelShader && g_alienResources.cameraMotionPs != nullptr)
 	{
+		g_alienResources.cbDefaultPSC = nullptr;
 		context->PSGetConstantBuffers(2, 1, &g_alienResources.cbDefaultPSC);
 
-		ID3D11RenderTargetView* rtv;
-		context->OMGetRenderTargets(1, &rtv, nullptr);
+		CComPtr<ID3D11RenderTargetView> rtv;
+		context->OMGetRenderTargets(1, &rtv.p, nullptr);
+		g_alienResources.velocityRtv = rtv;
 
-		ID3D11Resource* rtRes = nullptr;
-		if (rtv) rtv->GetResource(&rtRes);
+		CComPtr<ID3D11Resource> rtRes = nullptr;
+		if (rtv) rtv->GetResource(&rtRes.p);
 
-		g_alienResources.velocitySrv = srvFromTex((ID3D11Texture2D*)rtRes);
+		g_alienResources.velocitySrv = srvFromTex((ID3D11Texture2D*)rtRes.p);
 	}
 }
 
@@ -159,10 +162,12 @@ void STDMETHODCALLTYPE VSSetShader_hook(
 
 	if (g_alienResources.smaaVertexShader == pVertexShader && g_alienResources.smaaVertexShader != nullptr)
 	{
+		g_alienResources.cbDefaultXSC = nullptr;
 		context->VSGetConstantBuffers(0, 1, &g_alienResources.cbDefaultXSC);
 	}
 	else if (g_alienResources.rgbmEncodeVs == pVertexShader && g_alienResources.rgbmEncodeVs != nullptr)
 	{
+		g_alienResources.cbDefaultVSC = nullptr;
 		context->VSGetConstantBuffers(1, 1, &g_alienResources.cbDefaultVSC);
 	}
 }
