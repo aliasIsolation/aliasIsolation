@@ -6,7 +6,9 @@ The mod works by injecting itself into the executable, and hijacking D3D11 calls
 
 # Usage
 
-The mod launches Alien: Isolation and hooks into it. In order to function correctly, it also requires certain video settings in the game.
+Save the mod files in a non-system directory. It could be *Program Files*, or *My Documents*, or anything else as long as no special permissions are required to access that direcotry. If you're using a pre-packaged release, please unzip it rather than launching the mod from within the zip.
+
+The mod launches Alien: Isolation and hooks into it. The usage is slightly different depending on whether you have a Steam version of the game (see below). In order to function correctly, the mod also requires certain video settings in the game.
 
 ## If you have Alien: Isolation installed via Steam
 
