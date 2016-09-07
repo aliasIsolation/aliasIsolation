@@ -20,7 +20,7 @@ In order to remove the hook from Steam, run **detachAll.cmd**.
 
 ## If you have a non-Steam version of Alien: Isolation
 
-You need to point the injector to where the game is installed. This can be done by launching **aliasIsolationInjector.exe** with the install directory of the game as a parameter, for example:
+You need to point the injector to where the game is installed. This can be done by launching **aliasIsolationInjector.exe** with the install directory of the game as a parameter (via a shortcut or a .cmd file), for example:
 
 `aliasIsolationInjector.exe "C:\games\Alien Isolation"`
 
