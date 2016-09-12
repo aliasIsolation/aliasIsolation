@@ -21,8 +21,8 @@ Video Settings
 --------------
 
 Anti-aliasing must be set to SMAA T1x.
-Motion blur must be enabled.
 Chromatic Aberration must be disabled.
+Motion blur must be enabled.
 
 
 Runtime toggle
@@ -38,6 +38,7 @@ Known issues
 * Crashes when used with recent versions of ReShade.
 * RenderDoc, or any other software which also uses API hooking may break the rendering.
 * SLI/CrossFire performance will probably be badly impacted, and depending on what the driver does, might also suffer from glitchy rendering.
+* Some special effects can appear thinner or exhibit ghosting. Sparks are known to be eroded.
 
 
 Building from source
