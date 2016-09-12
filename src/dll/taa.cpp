@@ -6,7 +6,7 @@
 #include <d3d11.h>
 #include <atlbase.h>
 #include "glm/glm.hpp"
-#include "MinHook.h"
+#include "methodHook.h"
 
 #include "frameConstants.h"
 #include "resourceUtil.h"
@@ -111,7 +111,7 @@ void renderTaa(ID3D11DeviceContext *const context, ID3D11ShaderResourceView* mai
 				FILE *const f = fopen(lutPath.c_str(), "rb");
 				if (!f) {
 					MessageBoxA(NULL, ("Could not open " + lutPath).c_str(), "Bork", NULL);
-					abort();
+					DebugBreak();
 				}
 				fread(lutData, 1, LutSize, f);
 				fclose(f);
@@ -429,21 +429,23 @@ namespace
 
 void taaHookApi(ID3D11DeviceContext* immediateContext)
 {
-	Map = (Map_t)(*(void***)immediateContext)[int(D3D11DeviceContextVTbl::Map)];
-	MH_CHECK(MH_CreateHook(Map, &Map_hook, (LPVOID*)&Map_orig));
+#define HOOK_CONTEXT_METHOD(NAME) \
+	NAME = hookMethod(*(void***)immediateContext, int(D3D11DeviceContextVTbl::NAME), &NAME##_hook, (void**)&NAME##_orig)
 
-	Unmap = (Unmap_t)(*(void***)immediateContext)[int(D3D11DeviceContextVTbl::Unmap)];
-	MH_CHECK(MH_CreateHook(Unmap, &Unmap_hook, (LPVOID*)&Unmap_orig));
+	HOOK_CONTEXT_METHOD(Map);
+	HOOK_CONTEXT_METHOD(Unmap);
+
+#undef HOOK_CONTEXT_METHOD
 }
 
 void taaEnableApiHooks()
 {
-	MH_EnableHook(Map);
-	MH_EnableHook(Unmap);
+	enableMethodHook(Map);
+	enableMethodHook(Unmap);
 }
 
 void taaDisableApiHooks()
 {
-	MH_DisableHook(Map);
-	MH_DisableHook(Unmap);
+	disableMethodHook(Map);
+	disableMethodHook(Unmap);
 }

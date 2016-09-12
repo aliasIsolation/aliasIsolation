@@ -8,6 +8,7 @@
 #include "glm/glm.hpp"
 #include "glm/gtx/transform.hpp"
 #include "MinHook.h"
+#include "methodHook.h"
 
 #include "common.h"
 #include "vtables.h"
@@ -22,12 +23,14 @@
 #include "hookedFns.h"
 #include "shaderHooks.h"
 #include "dllParams.h"
+#include "settings.h"
 
 
 extern SharedDllParams	g_dllParams;
 
 ID3D11Device*			g_device = nullptr;
 ID3D11DeviceContext*	g_deferred_context = nullptr;
+Settings				g_settings;
 
 FrameConstants			g_frameConstants;
 AlienResources			g_alienResources;
@@ -39,18 +42,18 @@ extern ShaderHandle		g_sharpenPsHandle;
 
 void enableShaderHooks()
 {
-	MH_EnableHook(g_d3dHooks.PSSetShader);
-	MH_EnableHook(g_d3dHooks.VSSetShader);
-	MH_EnableHook(g_d3dHooks.Draw);
+	enableMethodHook(g_d3dHooks.PSSetShader);
+	enableMethodHook(g_d3dHooks.VSSetShader);
+	enableMethodHook(g_d3dHooks.Draw);
 
 	taaEnableApiHooks();
 }
 
 void disableShaderHooks()
 {
-	MH_DisableHook(g_d3dHooks.PSSetShader);
-	MH_DisableHook(g_d3dHooks.VSSetShader);
-	MH_DisableHook(g_d3dHooks.Draw);
+	disableMethodHook(g_d3dHooks.PSSetShader);
+	disableMethodHook(g_d3dHooks.VSSetShader);
+	disableMethodHook(g_d3dHooks.Draw);
 
 	taaDisableApiHooks();
 }
@@ -62,6 +65,7 @@ void finishFrame() {
 	g_frameConstants.taaRanThisFrame = false;
 	ShaderRegistry::releaseUnused();
 	g_frameConstants.prevViewProjNoJitter = g_frameConstants.currViewProjNoJitter;
+	loadSettings(&g_settings);
 }
 
 // ----------------------------------------------------------------------------------------------------------------
@@ -203,7 +207,6 @@ HRESULT WINAPI ResizeBuffers_hook(
 
 D3D11CreateDeviceAndSwapChain_t	D3D11CreateDeviceAndSwapChain_orig = nullptr;
 
-
 HRESULT WINAPI D3D11CreateDeviceAndSwapChain_hook(
       void		          *pAdapter,
       D3D_DRIVER_TYPE      DriverType,
@@ -218,6 +221,8 @@ const DXGI_SWAP_CHAIN_DESC *pSwapChainDesc,
       void    *pFeatureLevel,
       ID3D11DeviceContext  **ppImmediateContext
 ) {
+	//MessageBoxA(NULL, "D3D11CreateDeviceAndSwapChain_hook called", NULL, NULL);
+
 	g_frameConstants.screenWidth = pSwapChainDesc->BufferDesc.Width;
 	g_frameConstants.screenHeight = pSwapChainDesc->BufferDesc.Height;
 
@@ -240,34 +245,35 @@ const DXGI_SWAP_CHAIN_DESC *pSwapChainDesc,
 
 	DX_CHECK(g_device->CreateDeferredContext(0, &g_deferred_context));
 
-	g_d3dHooks.CreatePixelShader = (CreatePixelShader_t)(*(void***)*ppDevice)[int(D3D11DeviceVTbl::CreatePixelShader)];
-	MH_CHECK(MH_CreateHook(g_d3dHooks.CreatePixelShader, &CreatePixelShader_hook, (LPVOID*)&g_d3dHookOrig.CreatePixelShader));
+#define HOOK_DEVICE_METHOD(NAME) \
+	g_d3dHooks.NAME = hookMethod(*(void***)*ppDevice, int(D3D11DeviceVTbl::NAME), &NAME##_hook, (void**)&g_d3dHookOrig.NAME)
+#define HOOK_CONTEXT_METHOD(NAME) \
+	g_d3dHooks.NAME = hookMethod(*(void***)*ppImmediateContext, int(D3D11DeviceContextVTbl::NAME), &NAME##_hook, (void**)&g_d3dHookOrig.NAME)
+#define HOOK_SWAPCHAIN_METHOD(NAME) \
+	g_d3dHooks.NAME = hookMethod(*(void***)*ppSwapChain, int(IDXGISwapChainVtbl::NAME), &NAME##_hook, (void**)&g_d3dHookOrig.NAME)
 
-	g_d3dHooks.CreateVertexShader = (CreateVertexShader_t)(*(void***)*ppDevice)[int(D3D11DeviceVTbl::CreateVertexShader)];
-	MH_CHECK(MH_CreateHook(g_d3dHooks.CreateVertexShader, &CreateVertexShader_hook, (LPVOID*)&g_d3dHookOrig.CreateVertexShader));
+	HOOK_DEVICE_METHOD(CreatePixelShader);
+	HOOK_DEVICE_METHOD(CreateVertexShader);
+	HOOK_DEVICE_METHOD(CreateSamplerState);
 
-	g_d3dHooks.CreateSamplerState = (CreateSamplerState_t)(*(void***)*ppDevice)[int(D3D11DeviceVTbl::CreateSamplerState)];
-	MH_CHECK(MH_CreateHook(g_d3dHooks.CreateSamplerState, &CreateSamplerState_hook, (LPVOID*)&g_d3dHookOrig.CreateSamplerState));
+	HOOK_CONTEXT_METHOD(PSSetShader);
+	HOOK_CONTEXT_METHOD(VSSetShader);
+	HOOK_CONTEXT_METHOD(Draw);
 
-	g_d3dHooks.PSSetShader = (PSSetShader_t)(*(void***)*ppImmediateContext)[int(D3D11DeviceContextVTbl::PSSetShader)];
-	MH_CHECK(MH_CreateHook(g_d3dHooks.PSSetShader, &PSSetShader_hook, (LPVOID*)&g_d3dHookOrig.PSSetShader));
-
-	g_d3dHooks.VSSetShader = (VSSetShader_t)(*(void***)*ppImmediateContext)[int(D3D11DeviceContextVTbl::VSSetShader)];
-	MH_CHECK(MH_CreateHook(g_d3dHooks.VSSetShader, &VSSetShader_hook, (LPVOID*)&g_d3dHookOrig.VSSetShader));
-
-	g_d3dHooks.Draw = (Draw_t)(*(void***)*ppImmediateContext)[int(D3D11DeviceContextVTbl::Draw)];
-	MH_CHECK(MH_CreateHook(g_d3dHooks.Draw, &Draw_hook, (LPVOID*)&g_d3dHookOrig.Draw));
-
-	g_d3dHooks.ResizeBuffers = (ResizeBuffers_t)(*(void***)*ppSwapChain)[int(IDXGISwapChainVtbl::ResizeBuffers)];
-	MH_CHECK(MH_CreateHook(g_d3dHooks.ResizeBuffers, &ResizeBuffers_hook, (LPVOID*)&g_d3dHookOrig.ResizeBuffers));
+	HOOK_SWAPCHAIN_METHOD(ResizeBuffers);
 
 	taaHookApi(*ppImmediateContext);
+
+#undef HOOK_DEVICE_METHOD
+#undef HOOK_CONTEXT_METHOD
+#undef HOOK_SWAPCHAIN_METHOD
+
 	enableShaderHooks();
 
-	MH_EnableHook(g_d3dHooks.CreatePixelShader);
-	MH_EnableHook(g_d3dHooks.CreateVertexShader);
-	MH_EnableHook(g_d3dHooks.CreateSamplerState);
-	MH_EnableHook(g_d3dHooks.ResizeBuffers);
+	enableMethodHook(g_d3dHooks.CreatePixelShader);
+	enableMethodHook(g_d3dHooks.CreateVertexShader);
+	enableMethodHook(g_d3dHooks.CreateSamplerState);
+	enableMethodHook(g_d3dHooks.ResizeBuffers);
 
 #if _DEBUG
 	if (AllocConsole())
@@ -326,8 +332,8 @@ void unhookRendering()
 	ShaderRegistry::stopCompilerThread();
 	disableShaderHooks();
 	MH_DisableHook(g_d3dHooks.D3D11CreateDeviceAndSwapChain);
-	MH_DisableHook(g_d3dHooks.CreatePixelShader);
-	MH_DisableHook(g_d3dHooks.CreateVertexShader);
-	MH_DisableHook(g_d3dHooks.CreateSamplerState);
-	MH_DisableHook(g_d3dHooks.ResizeBuffers);
+	disableMethodHook(g_d3dHooks.CreatePixelShader);
+	disableMethodHook(g_d3dHooks.CreateVertexShader);
+	disableMethodHook(g_d3dHooks.CreateSamplerState);
+	disableMethodHook(g_d3dHooks.ResizeBuffers);
 }

@@ -16,6 +16,14 @@ struct PSOutput
 	float4 param1 : SV_Target1;
 };
 
+cbuffer Constants : register(b0)
+{
+	float g_caAmount;
+	float g_pad0;
+	float g_pad1;
+	float g_pad2;
+}
+
 PSOutput mainPS(in PSInput IN)
 {
 	PSOutput OUT = (PSOutput)0;
@@ -27,12 +35,15 @@ PSOutput mainPS(in PSInput IN)
 	float2 v_texcoord0 = IN.param1;
 
 	float2 center_offset = v_texcoord0 - float2( 0.5, 0.5 );
-	float center_dist = length( center_offset );
 
-	float ca_amount = 0.009;
-	//float ca_amount = 0.0;
+	float ca_amount = 0.018 * g_caAmount;
+	// ca_amount = 0.0;
 
-	int num_colors = 7;//max(3, int(max(screenWidth, screenHeight) * 0.075 * sqrt(ca_amount)));
+	// Reduce the amount of CA in the center of the screen to preserve image sharpness.
+	ca_amount *= saturate(length(center_offset) * 2);
+
+	int num_colors = 7;
+	//int num_colors = max(3, int(max(screenWidth, screenHeight) * 0.075 * sqrt(ca_amount)));
 	float softness = 0.3;
 
 	float3 color_sum = float3(0,0,0);
@@ -40,7 +51,7 @@ PSOutput mainPS(in PSInput IN)
 
 	for( int i = 0; i < num_colors; ++i ) {
 		float t = float( i ) / ( num_colors - 1 );
-		
+
 		const float thresh = softness * 2.0 / 3 + 1.0 / 3;
 		float3 color =
 			lerp(float3(0,0,1), float3(0,0,0), smoothstep(0, thresh, abs(t - 0.5 / 3)))
@@ -56,7 +67,6 @@ PSOutput mainPS(in PSInput IN)
 	}
 
 	float3 res = res_sum / color_sum;
-
 	OUT.param0 = float4(res, 1.0);
 	return OUT;
 }

@@ -21,7 +21,7 @@ CComPtr<ID3D11Texture2D> texFromView(const CComPtr<ID3D11ShaderResourceView>& te
 	res->GetType(&resType);
 
 	if (resType != D3D11_RESOURCE_DIMENSION_TEXTURE2D) {
-		abort();
+		DebugBreak();
 	}
 
 	ID3D11Texture2D *const tex = (ID3D11Texture2D*)res.p;
@@ -48,7 +48,7 @@ CComPtr<ID3D11RenderTargetView> rtvFromTex(const CComPtr<ID3D11Texture2D>& tex) 
 		g_device->CreateRenderTargetView(tex, &desc, &rtv);
 
 		if (!rtv) {
-			abort();
+			DebugBreak();
 		}
 
 		textureToRtvMap[tex] = rtv;
@@ -64,7 +64,7 @@ CComPtr<ID3D11RenderTargetView> rtvFromSrv(const CComPtr<ID3D11ShaderResourceVie
 	res->GetType(&resType);
 
 	if (resType != D3D11_RESOURCE_DIMENSION_TEXTURE2D) {
-		abort();
+		DebugBreak();
 	}
 
 	CComPtr<ID3D11Texture2D> tex = (ID3D11Texture2D*)res.p;
@@ -91,7 +91,7 @@ CComPtr<ID3D11ShaderResourceView> srvFromTex(const CComPtr<ID3D11Texture2D>& tex
 		g_device->CreateShaderResourceView(tex, &desc, &srv);
 
 		if (!srv) {
-			abort();
+			DebugBreak();
 		}
 
 		textureToSrvMap[tex] = srv.p;
@@ -119,7 +119,7 @@ CComPtr<ID3D11UnorderedAccessView> uavFromTex(const CComPtr<ID3D11Texture2D>& te
 		g_device->CreateUnorderedAccessView(tex, &desc, &uav);
 
 		if (!uav) {
-			abort();
+			DebugBreak();
 		}
 
 		textureToUavMap[tex] = uav;

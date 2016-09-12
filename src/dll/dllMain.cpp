@@ -5,6 +5,8 @@
 #include <functional>
 #include <vector>
 #include <algorithm>
+#include <filesystem>
+namespace fs = std::experimental::filesystem;
 
 #include "MinHook.h"
 
@@ -13,6 +15,8 @@
 #include "dllParams.h"
 #include "common.h"
 #include "injection.h"
+#include "crashHandler.h"
+#include "settings.h"
 
 
 SharedDllParams		g_dllParams;
@@ -95,6 +99,8 @@ DWORD WINAPI terminationWatchThread(void*)
 
 		if (params.terminate) {
 			unhookRendering();
+			MH_DisableHook(&SetUnhandledExceptionFilter);
+			uninstallCrashHandler();
 			FreeLibraryAndExitThread(g_hModule, 0);
 		}
 
@@ -110,6 +116,12 @@ DWORD WINAPI terminationWatchThread(void*)
 	}
 }
 
+LPTOP_LEVEL_EXCEPTION_FILTER WINAPI SetUnhandledExceptionFilter_hook(LPTOP_LEVEL_EXCEPTION_FILTER lpTopLevelExceptionFilter)
+{
+	return nullptr;
+}
+void* SetUnhandledExceptionFilter_orig = nullptr;
+
 BOOL APIENTRY DllMain( HMODULE hModule,
                        DWORD  ul_reason_for_call,
                        LPVOID lpReserved
@@ -118,22 +130,31 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 	switch (ul_reason_for_call)
 	{
 	case DLL_PROCESS_ATTACH:
+	{
 		//MessageBoxA(NULL, "DLL_PROCESS_ATTACH", NULL, NULL);
+
 		MH_CHECK(MH_Initialize());
 
+		// Set our crash handler and prevent the game from overriding it.
+		installCrashHandler();
+		MH_CHECK(MH_CreateHook(&SetUnhandledExceptionFilter, &SetUnhandledExceptionFilter_hook, &SetUnhandledExceptionFilter_orig));
+		MH_CHECK(MH_EnableHook(&SetUnhandledExceptionFilter));
+
+		g_dllParams = getSharedDllParams();
 		GetModuleFileNameA(hModule, g_modulePath, sizeof(g_modulePath));
+		fs::path settingsFile = fs::path(g_dllParams.aliasIsolationRootDir) / "settings.txt";
+		setSettingsFilePath(settingsFile.string().c_str());
 
 		MH_CHECK(MH_CreateHook(&CreateProcessW, &CreateProcessW_hook, (LPVOID*)&CreateProcessW_orig));
 		MH_CHECK(MH_EnableHook(&CreateProcessW));
 
-		g_dllParams = getSharedDllParams();
 		hookRendering();
-		enableShaderHooks();
 
 		g_hModule = hModule;
 		CreateThread(NULL, NULL, &terminationWatchThread, NULL, NULL, NULL);
 
 		break;
+	}
 	case DLL_PROCESS_DETACH:
 		//MessageBoxA(NULL, "DLL_PROCESS_DETACH", NULL, NULL);
 

@@ -18,11 +18,11 @@ SharedDllParams getSharedDllParams()
 {
 	char tempPath[MAX_PATH];
 	FILE* f = fopen(getSharedParamsFilePath().c_str(), "rb");
-	if (!f) abort();
+	if (!f) DebugBreak();
 
 	SharedDllParams params;
 	size_t rb = fread(&params, 1, sizeof(params), f);
-	if (rb != sizeof(params)) abort();
+	if (rb != sizeof(params)) DebugBreak();
 
 	fclose(f);
 	return params;
@@ -32,10 +32,10 @@ void setSharedDllParams(const SharedDllParams& params)
 {
 	char tempPath[MAX_PATH];
 	FILE* f = fopen(getSharedParamsFilePath().c_str(), "wb");
-	if (!f) abort();
+	if (!f) DebugBreak();
 
 	size_t wb = fwrite(&params, 1, sizeof(params), f);
-	if (wb != sizeof(params)) abort();
+	if (wb != sizeof(params)) DebugBreak();
 
 	fclose(f);
 }

@@ -8,9 +8,9 @@ Texture2D<float4> logoTex  : register(t20);
 
 cbuffer Constants : register(b10) {
 	float	logoIntensity;
+	float	sharpenAmount;
 	uint	pad0;
 	uint	pad1;
-	uint	pad2;
 }
 
 
@@ -60,11 +60,10 @@ PSOutput mainPS(in PSInput IN)
 
 	[unroll]
 	for (uint i = 0; i < 4; ++i) {
-		//neighborDiff += abs(calculateLuma(neighbors[i]) - calculateLuma(center));
 		neighborDiff += calculateLuma(abs(neighbors[i] - center));
 	}
 
-	float sharpening = (1 - saturate(4 * neighborDiff)) * 0.65;
+	float sharpening = (1 - saturate(2 * neighborDiff)) * sharpenAmount;
 	//sharpening = 0;
 
 	float3 sharpened = float3(

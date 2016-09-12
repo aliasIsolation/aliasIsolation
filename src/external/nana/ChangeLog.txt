@@ -1,0 +1,17 @@
+﻿Nana C++ Library
+
+The details of release
+http://nanapro.org/release_note.htm
+
+Version 1.4.0
+July 19, 2016
+
+Thanks for you guys who contributed, by reporting bugs and submitting to this Nana release.
+Ariel Viña Rodríguez, besh81, dankan1890, Greentwip, Katsuhisa Yuasa, Leonardo Backes Vargas, Pr0curo, sarrow104 and 周伟.
+
+================
+Version 1.3.0
+February 8, 2016
+
+Thanks for you guys who contributed, by reporting bugs and submitting to this Nana release.
+Ariel Vina-Rodriguez, kmribti, leabackes, Pr0curo and redagito.

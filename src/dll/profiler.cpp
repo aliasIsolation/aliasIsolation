@@ -21,7 +21,7 @@ using std::map;
 	#define PROFILER_ENABLE 0
 #endif
 
-#define DXCall(EXPR) { HRESULT ret = EXPR; if (ret != S_OK) { MessageBoxA(NULL, #EXPR " failed.", NULL, NULL); abort(); } }
+#define DXCall(EXPR) { HRESULT ret = EXPR; if (ret != S_OK) { MessageBoxA(NULL, #EXPR " failed.", NULL, NULL); DebugBreak(); } }
 
 // == Profiler ====================================================================================
 

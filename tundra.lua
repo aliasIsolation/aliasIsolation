@@ -7,13 +7,17 @@ local common = {
 		},
 		CCOPTS = { 
 			"/FS",	-- fatal error C1041: cannot open program database 'filename.pdb'; if multiple CL.EXE write to the same .PDB file, please use /FS
+			"/DEBUG",
+			"/Zi",
 			{ "/Od", "/MTd"; Config = "*-*-debug-*" },
-			{ "/O2", "/Zo", "/MT"; Config = "*-*-release" },
+			{ "/Od", "/MT"; Config = "*-*-release" },
 		},
 		CXXOPTS = { 
 			"/EHsc",
-			{ "/Od", "/MTd", "/openmp"; Config = "*-*-debug-*" },
-			{ "/O2", "/Zo", "/MT", "/openmp"; Config = "*-*-release" },
+			"/DEBUG",
+			"/Zi",
+			{ "/Od", "/MTd"; Config = "*-*-debug-*" },
+			{ "/Od", "/MT"; Config = "*-*-release" },
 		},
 		PROGOPTS = {
 			{"/NODEFAULTLIB:LIBCMT"; Config = "*-*-debug-*"}
