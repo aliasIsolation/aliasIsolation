@@ -279,7 +279,7 @@ bool injectIntoProcess(const DWORD procId)
 
 	const std::string dllPath = getAliasIsolationDllPath();
 	if (isAlreadyInjected(proc, dllPath)) {
-		MessageBox(NULL, "DLL already injected!", "Error", MB_OK); 
+		//MessageBox(NULL, "DLL already injected!", "Error", MB_OK); 
 		return false;
 	}
 

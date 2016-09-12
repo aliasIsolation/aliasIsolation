@@ -40,22 +40,33 @@ extern ShaderHandle		g_sharpenPsHandle;
 
 // ----------------------------------------------------------------------------------------------------------------
 
+bool g_shaderHooksEnabled = false;
+
 void enableShaderHooks()
 {
-	enableMethodHook(g_d3dHooks.PSSetShader);
-	enableMethodHook(g_d3dHooks.VSSetShader);
-	enableMethodHook(g_d3dHooks.Draw);
+	if (!g_shaderHooksEnabled)
+	{
+		enableMethodHook(g_d3dHooks.PSSetShader);
+		enableMethodHook(g_d3dHooks.VSSetShader);
+		enableMethodHook(g_d3dHooks.Draw);
 
-	taaEnableApiHooks();
+		taaEnableApiHooks();
+		g_shaderHooksEnabled = true;
+	}
 }
 
 void disableShaderHooks()
 {
-	disableMethodHook(g_d3dHooks.PSSetShader);
-	disableMethodHook(g_d3dHooks.VSSetShader);
-	disableMethodHook(g_d3dHooks.Draw);
+	if (g_shaderHooksEnabled)
+	{
+		disableMethodHook(g_d3dHooks.PSSetShader);
+		disableMethodHook(g_d3dHooks.VSSetShader);
+		disableMethodHook(g_d3dHooks.Draw);
 
-	taaDisableApiHooks();
+		taaDisableApiHooks();
+
+		g_shaderHooksEnabled = false;
+	}
 }
 
 // ----------------------------------------------------------------------------------------------------------------

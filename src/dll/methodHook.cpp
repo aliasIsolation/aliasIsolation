@@ -44,6 +44,8 @@ void* hookMethod(void** vtbl, int fnIndex, void* newFn, void** oldFn)
 
 void enableMethodHook(void* hookHandle)
 {
+	if (!hookHandle) return;
+
 	const HookData& hd = *(const HookData*)hookHandle;
 	if (hd.intrusive)
 	{
@@ -60,6 +62,8 @@ void enableMethodHook(void* hookHandle)
 
 void disableMethodHook(void* hookHandle)
 {
+	if (!hookHandle) return;
+
 	const HookData& hd = *(const HookData*)hookHandle;
 	if (hd.intrusive)
 	{
