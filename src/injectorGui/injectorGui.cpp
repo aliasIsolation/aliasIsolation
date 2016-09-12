@@ -129,10 +129,12 @@ int CALLBACK WinMain(
 	sharpeningAmountSlider.value(int(settings.sharpening * 1000));
 	sharpeningAmountSlider.vernier([&](unsigned maximum, unsigned cursor_value)
 	{
-		float val = float(cursor_value) / maximum;
+		return std::to_string(100 * cursor_value / maximum) + "%";
+	});
+	sharpeningAmountSlider.events().value_changed([&](const arg_slider& arg){
+		float val = float(arg.widget.value()) / arg.widget.maximum();
 		settings.sharpening = val;
 		onSettingsChanged(settings);
-		return std::to_string(int(100 * val)) + "%";
 	});
 
 	// --------------------------------------------------------------------------------
@@ -154,10 +156,12 @@ int CALLBACK WinMain(
 	caAmountSlider.value(int(settings.chromaticAberration * 1000));
 	caAmountSlider.vernier([&](unsigned maximum, unsigned cursor_value)
 	{
-		float val = float(cursor_value) / maximum;
+		return std::to_string(100 * cursor_value / maximum) + "%";
+	});
+	caAmountSlider.events().value_changed([&](const arg_slider& arg){
+		float val = float(arg.widget.value()) / arg.widget.maximum();
 		settings.chromaticAberration = val;
 		onSettingsChanged(settings);
-		return std::to_string(int(100 * val)) + "%";
 	});
 
 	label infoLabel(fm);
