@@ -3,11 +3,13 @@
 #include <cstdio>
 #include <string>
 #include <fstream>
+#define NOMINMAX
 #include <windows.h>
 #include <tlhelp32.h>
 #include <psapi.h>
 #include <shlwapi.h>
 #include <filesystem>
+#include <algorithm>
 namespace fs = std::experimental::filesystem;
 
 #include "dllParams.h"
@@ -110,59 +112,56 @@ int CALLBACK WinMain(
 	settingsGroup.caption("Settings");
 	settingsGroup.div("vert gap=5 margin=10 list arrange=[30,repeated]");
 
-	// --------------------------------------------------------------------------------
-	// Sharpening
-	auto sharpeningSetting = settingsGroup.create_child<panel<false>>("list");
-	place sharpeningPlace;
-	sharpeningPlace.bind(*sharpeningSetting);
-	sharpeningPlace.div("<label><slider weight=70%>");
-
-	label sharpeningLabel(*sharpeningSetting);
-	sharpeningPlace["label"] << sharpeningLabel;
-	sharpeningLabel.caption("Sharpening");
-	sharpeningLabel.text_align(align::left, align_v::center);
-
-	slider sharpeningAmountSlider(*sharpeningSetting);
-	sharpeningPlace["slider"] << sharpeningAmountSlider;
-	sharpeningAmountSlider.create(fm);
-	sharpeningAmountSlider.maximum(1000);
-	sharpeningAmountSlider.value(int(settings.sharpening * 1000));
-	sharpeningAmountSlider.vernier([&](unsigned maximum, unsigned cursor_value)
+	auto createFloatSetting = [&](const char* name, float *const targetSetting)
 	{
-		return std::to_string(100 * cursor_value / maximum) + "%";
-	});
-	sharpeningAmountSlider.events().value_changed([&](const arg_slider& arg){
-		float val = float(arg.widget.value()) / arg.widget.maximum();
-		settings.sharpening = val;
-		onSettingsChanged(settings);
-	});
+		panel<false>& settingPanel = *settingsGroup.create_child<panel<false>>("list");
+		place& settingPlace = *new place;
+		settingPlace.bind(settingPanel);
+		settingPlace.div("<label weight=130><slider><text weight=50>");
 
-	// --------------------------------------------------------------------------------
-	// Chromatic aberration
-	auto caSetting = settingsGroup.create_child<panel<false>>("list");
-	place caPlace;
-	caPlace.bind(*caSetting);
-	caPlace.div("<label><slider weight=70%>");
+		label& settingLabel = *new label(settingPanel);
+		settingPlace["label"] << settingLabel;
+		settingLabel.caption(name);
+		settingLabel.text_align(align::left, align_v::center);
 
-	label caLabel(*caSetting);
-	caPlace["label"] << caLabel;
-	caLabel.caption("Chromatic aberration");
-	caLabel.text_align(align::left, align_v::center);
+		textbox& settingText = *new textbox(settingPanel);
+		settingText.caption(std::to_string(*targetSetting));
+		settingText.multi_lines(false);
+		settingText.set_accept([](wchar_t c){
+			return (c >= '0' && c <= '9') || c == '.' || c == '\b';
+		});
+		settingPlace["text"] << settingText;
 
-	slider caAmountSlider(*caSetting);
-	caPlace["slider"] << caAmountSlider;
-	caAmountSlider.create(fm);
-	caAmountSlider.maximum(1000);
-	caAmountSlider.value(int(settings.chromaticAberration * 1000));
-	caAmountSlider.vernier([&](unsigned maximum, unsigned cursor_value)
-	{
-		return std::to_string(100 * cursor_value / maximum) + "%";
-	});
-	caAmountSlider.events().value_changed([&](const arg_slider& arg){
-		float val = float(arg.widget.value()) / arg.widget.maximum();
-		settings.chromaticAberration = val;
-		onSettingsChanged(settings);
-	});
+		slider& settingAmountSlider = *new slider(settingPanel);
+		settingPlace["slider"] << settingAmountSlider;
+		settingAmountSlider.create(fm);
+		settingAmountSlider.maximum(1000);
+		settingAmountSlider.value(int(*targetSetting * 1000));
+		settingAmountSlider.vernier([=](unsigned maximum, unsigned cursor_value)
+		{
+			return std::to_string(100 * cursor_value / maximum) + "%";
+		});
+		settingAmountSlider.events().value_changed([&settings, &settingText, targetSetting](const arg_slider& arg){
+			float val = float(arg.widget.value()) / arg.widget.maximum();
+			*targetSetting = val;
+			settingText.caption(std::to_string(*targetSetting));
+			onSettingsChanged(settings);
+		});
+		settingText.events().text_changed([&settings, &settingAmountSlider, targetSetting](const arg_textbox& arg){
+			float val = (float)atof(arg.widget.caption().c_str());
+			if (val < 0.0f || val > 1.0f) {
+				val = std::max(0.0f, std::min(1.0f, val));
+				arg.widget.caption(std::to_string(val));
+			}
+
+			*targetSetting = val;
+			settingAmountSlider.value(int(1000 * val));
+			onSettingsChanged(settings);
+		});
+	};
+
+	createFloatSetting("Sharpening", &settings.sharpening);
+	createFloatSetting("Chromatic aberration", &settings.chromaticAberration);
 
 	label infoLabel(fm);
 	infoLabel.format(true);
