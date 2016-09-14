@@ -1,5 +1,5 @@
 Overview
------
+--------
 
 Alias Isolation is a mod for Alien: Isolation. It adds temporal anti-aliasing into the shipped game, and fixes a few small issues with the rendering.
 
