@@ -35,7 +35,6 @@ void	onInject(const std::string& exePath);
 bool	startSuspendedProcess(const std::string& procPath, PROCESS_INFORMATION *const pi);
 DWORD	findProcess(const std::string& procName);
 bool	injectIntoProcess(const DWORD procId);
-bool	isAlreadyInjected(const HANDLE proc, const std::string& dllPath);
 
 
 int CALLBACK WinMain(
@@ -278,6 +277,7 @@ bool injectIntoProcess(const DWORD procId)
 
 	const std::string dllPath = getAliasIsolationDllPath();
 	if (isAlreadyInjected(proc, dllPath)) {
+		CloseHandle(proc);
 		//MessageBox(NULL, "DLL already injected!", "Error", MB_OK); 
 		return false;
 	}
@@ -324,26 +324,6 @@ std::string getAliasIsolationDllPath()
 	GetModuleFileNameA(getCurrentModule(), modulePath, sizeof(modulePath));
 	PathRemoveFileSpec(modulePath);
 	return std::string(modulePath) + "\\aliasIsolation.dll";
-}
-
-bool isAlreadyInjected(const HANDLE proc, const std::string& dllPath)
-{
-	HMODULE	mods[1024];
-	DWORD	bytesNeeded;
-
-	if (EnumProcessModules(proc, mods, sizeof(mods), &bytesNeeded)) {
-		for (DWORD i = 0; i < (bytesNeeded / sizeof(HMODULE)); ++i) {
-			char modName[MAX_PATH];
-
-			if (GetModuleFileNameExA(proc, mods[i], modName, sizeof(modName))) {
-				if (0 == strcmpi(dllPath.c_str(), modName)) {
-					return true;
-				}
-			}
-		}
-	}
-
-	return false;
 }
 
 bool getAiSteamInstallPath(std::string *const result)

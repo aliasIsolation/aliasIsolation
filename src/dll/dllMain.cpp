@@ -19,8 +19,9 @@ namespace fs = std::experimental::filesystem;
 #include "settings.h"
 
 
-SharedDllParams		g_dllParams;
-CreateProcessW_t	CreateProcessW_orig = nullptr;
+SharedDllParams					g_dllParams;
+std::vector<CreateProcessW_t>	CreateProcessW_orig;
+enum { CreateProcessW_MaxOrigFnCount = 32 * 1024 * 1024 };
 
 
 inline bool ends_with(std::string const & value, std::string const & ending)
@@ -37,7 +38,9 @@ inline bool ends_with(std::wstring const & value, std::wstring const & ending)
 
 
 char g_modulePath[_MAX_PATH];
+char CreateProcessW_hookBytesHead[8];
 
+thread_local int reentranceCountCreateProcessW = 0;
 
 BOOL WINAPI CreateProcessW_hook(
   LPCTSTR lpApplicationName,
@@ -56,17 +59,24 @@ BOOL WINAPI CreateProcessW_hook(
 	std::wstring appName = lpApplicationName ? (wchar_t*)lpApplicationName : L"";
 	std::transform(appName.begin(), appName.end(), appName.begin(), ::towlower);
 
-	//MessageBoxW(NULL, (LPCWSTR)appName.c_str(), (LPCWSTR)lpApplicationName, NULL);
+	// If we call the "original" function here, if nothing is hooked, it should just call the kernel32 CreateProcessW.
+	// However, if we hooked it first, and then some other process replaced the hook, we're trying to be nice and still keep the other
+	// hook that ours got replaced by. But now if that other hook was also being nice and calls back to our function, we would have
+	// an infinite loop where we would once again call back to the other hook.
+	// Instead, we keep a history of the hooks we replaced, and call them based on the re-entrance.
+	CreateProcessW_t origFn = CreateProcessW_orig[CreateProcessW_orig.size() - reentranceCountCreateProcessW - 1];
 
 	if (ends_with(appName, L"\\ai.exe") || ends_with(appName, L"\\steam.exe"))
 	{
 		bool wasSuspended = (dwCreationFlags & CREATE_SUSPENDED) != 0;
 		dwCreationFlags |= CREATE_SUSPENDED;
 
-		const BOOL result = CreateProcessW_orig(
+		reentranceCountCreateProcessW += 1;
+		const BOOL result = origFn(
 			lpApplicationName, lpCommandLine, lpProcessAttributes, lpThreadAttributes, bInheritHandles,
 			dwCreationFlags, lpEnvironment, lpCurrentDirectory, lpStartupInfo, lpProcessInformation);
-	
+		reentranceCountCreateProcessW -= 1;
+
 		if (result)	{
 			injectDll(lpProcessInformation->hProcess, g_modulePath);
 
@@ -79,7 +89,25 @@ BOOL WINAPI CreateProcessW_hook(
 
 		return result;
 	} else {
-		return CreateProcessW_orig(lpApplicationName, lpCommandLine, lpProcessAttributes, lpThreadAttributes, bInheritHandles, dwCreationFlags, lpEnvironment, lpCurrentDirectory, lpStartupInfo, lpProcessInformation);
+		reentranceCountCreateProcessW += 1;
+		const BOOL result = origFn(lpApplicationName, lpCommandLine, lpProcessAttributes, lpThreadAttributes, bInheritHandles, dwCreationFlags, lpEnvironment, lpCurrentDirectory, lpStartupInfo, lpProcessInformation);
+		reentranceCountCreateProcessW -= 1;
+		return result;
+	}
+}
+
+
+void installCreateProcessHook()
+{
+	MH_RemoveHook(&CreateProcessW);
+	void* orig;
+	MH_CHECK(MH_CreateHook(&CreateProcessW, &CreateProcessW_hook, &orig));
+	MH_CHECK(MH_EnableHook(&CreateProcessW));
+	memcpy(CreateProcessW_hookBytesHead, &CreateProcessW, sizeof(CreateProcessW_hookBytesHead));
+
+	if (CreateProcessW_orig.size() < CreateProcessW_MaxOrigFnCount)
+	{
+		CreateProcessW_orig.push_back((CreateProcessW_t)orig);
 	}
 }
 
@@ -109,6 +137,15 @@ DWORD WINAPI terminationWatchThread(void*)
 				enableShaderHooks();
 			} else if ((GetKeyState(VK_CONTROL) & GetKeyState(VK_DELETE) & 0x80u) != 0u) {
 				disableShaderHooks();
+			}
+
+			// Some nasty DLLs replace the CreateProcessW hook, thus preventing our mod from working.
+			// In response, we're being aggressive and check frequently whether our hook is the current one.
+			// If not, we install it again.
+			if (0 != memcmp(CreateProcessW_hookBytesHead, &CreateProcessW, sizeof(CreateProcessW_hookBytesHead)))
+			{
+				//MessageBoxA(NULL, "CreateProcessW hook stolen!", NULL, NULL);
+				installCreateProcessHook();
 			}
 
 			Sleep(50);
@@ -145,8 +182,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 		fs::path settingsFile = fs::path(g_dllParams.aliasIsolationRootDir) / "settings.txt";
 		setSettingsFilePath(settingsFile.string().c_str());
 
-		MH_CHECK(MH_CreateHook(&CreateProcessW, &CreateProcessW_hook, (LPVOID*)&CreateProcessW_orig));
-		MH_CHECK(MH_EnableHook(&CreateProcessW));
+		installCreateProcessHook();
 
 		hookRendering();
 
@@ -158,9 +194,9 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 	case DLL_PROCESS_DETACH:
 		//MessageBoxA(NULL, "DLL_PROCESS_DETACH", NULL, NULL);
 
-		MH_DisableHook(&CreateProcessW);
-
 		unhookRendering();
+		MH_Uninitialize();
+
 		break;
 	}
 

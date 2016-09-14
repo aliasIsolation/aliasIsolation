@@ -17,7 +17,6 @@ std::string	getAliasIsolationDllPath();
 bool		getAiSteamInstallPath(std::string *const result);
 
 bool		inject(const std::string& arg);
-bool		isAlreadyInjected(const HANDLE proc, const std::string& dllPath);
 
 
 int main(int argc, char* argv[])
@@ -168,26 +167,6 @@ std::string getAliasIsolationDllPath()
 	GetModuleFileNameA(getCurrentModule(), modulePath, sizeof(modulePath));
 	PathRemoveFileSpec(modulePath);
 	return std::string(modulePath) + "\\aliasIsolation.dll";
-}
-
-bool isAlreadyInjected(const HANDLE proc, const std::string& dllPath)
-{
-	HMODULE	mods[1024];
-	DWORD	bytesNeeded;
-
-	if (EnumProcessModules(proc, mods, sizeof(mods), &bytesNeeded)) {
-		for (DWORD i = 0; i < (bytesNeeded / sizeof(HMODULE)); ++i) {
-			char modName[MAX_PATH];
-
-			if (GetModuleFileNameExA(proc, mods[i], modName, sizeof(modName))) {
-				if (0 == strcmpi(dllPath.c_str(), modName)) {
-					return true;
-				}
-			}
-		}
-	}
-
-	return false;
 }
 
 bool getAiSteamInstallPath(std::string *const result)
