@@ -29,7 +29,6 @@ void renderTaa(ID3D11DeviceContext *const context, ID3D11ShaderResourceView* mai
 	static ID3D11Texture2D*		accumTex[2];
 	static ID3D11SamplerState*	pointSampler;
 	static ID3D11SamplerState*	linearSampler;
-	static ID3D11Texture2D*		taaLut;
 	static ID3D11Buffer*		cb;
 	static ShaderHandle			taaCsHandle;
 
@@ -91,40 +90,6 @@ void renderTaa(ID3D11DeviceContext *const context, ID3D11ShaderResourceView* mai
 		}
 	
 		{
-			enum { LutWidth = 16, LutPitch = LutWidth * sizeof(uint32_t) * 4, LutSize = LutPitch * LutWidth };
-
-			D3D11_TEXTURE2D_DESC texDesc;
-			ZeroMemory(&texDesc, sizeof(texDesc));
-			texDesc.Width = LutWidth;
-			texDesc.Height = LutWidth;
-			texDesc.MipLevels = 1;
-			texDesc.ArraySize = 1;
-			texDesc.Format = DXGI_FORMAT_R32G32B32A32_UINT;
-			texDesc.SampleDesc.Count = 1;
-			texDesc.SampleDesc.Quality = 0;
-			texDesc.Usage = D3D11_USAGE_IMMUTABLE;
-			texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-
-			char lutData[LutSize] = {};
-			{
-				const std::string lutPath = std::string(g_dllParams.aliasIsolationRootDir) + "/data/textures/taaLut.bin";
-				FILE *const f = fopen(lutPath.c_str(), "rb");
-				if (!f) {
-					MessageBoxA(NULL, ("Could not open " + lutPath).c_str(), "Bork", NULL);
-					DebugBreak();
-				}
-				fread(lutData, 1, LutSize, f);
-				fclose(f);
-			}
-
-			D3D11_SUBRESOURCE_DATA sub;
-			sub.SysMemPitch = LutPitch;
-			sub.SysMemSlicePitch = LutSize;
-			sub.pSysMem = lutData;
-			DX_CHECK(g_device->CreateTexture2D(&texDesc, &sub, &taaLut));
-		}
-
-		{
 			// Fill in a buffer description.
 			D3D11_BUFFER_DESC cbDesc;
 			cbDesc.ByteWidth = sizeof(constants);
@@ -157,7 +122,7 @@ void renderTaa(ID3D11DeviceContext *const context, ID3D11ShaderResourceView* mai
 		mainTexView,
 		srvFromTex(accumTex[1 - accumIdx]),
 		g_alienResources.velocitySrv,
-		srvFromTex(taaLut)
+		g_alienResources.depthSrv
 	};
 
 	CComPtr<ID3D11UnorderedAccessView> uavs[] = {
@@ -282,7 +247,10 @@ struct {
 	glm::dmat4 ViewProj;
 	glm::dmat4 SecondaryViewProj;
 } g_defaultXSC_cache;
+uint taaSampleIdxForXSC_cache = -1;
 
+
+bool g_disableXSC_cache = true;
 
 HRESULT WINAPI Unmap_hook(
 	ID3D11DeviceContext *context,
@@ -342,35 +310,41 @@ HRESULT WINAPI Unmap_hook(
 
 				bool matchingPass = true;
 
-				// Only re-calculate the matrices if ViewProj changed. Otherwise we use the ones from g_defaultXSC_cache.
-				if (g_frameConstants.currViewProjNoJitter != xsc->ViewProj) {
-					glm::mat4 invViewMatrix = glm::mat4(inverse(glm::dmat4(xsc->ViewMatrix)));
-					glm::vec3 viewCameraPos(invViewMatrix[0][3], invViewMatrix[1][3], invViewMatrix[2][3]);
+				glm::vec3 viewCameraPos = glm::dmat3(xsc->ViewMatrix) * glm::dvec3(-xsc->ViewMatrix[0][3], -xsc->ViewMatrix[1][3], -xsc->ViewMatrix[2][3]);
 
-					// Standard views have the CameraPosition matching the view matrix
-					if (length(viewCameraPos - glm::vec3(xsc->CameraPosition)) < 0.01f) {
+				// Standard views have the CameraPosition matching the view matrix
+				if (length(viewCameraPos - glm::vec3(xsc->CameraPosition)) < 0.01f) {
+
+					// Only re-calculate the matrices if ViewProj changed. Otherwise we use the ones from g_defaultXSC_cache.
+					if (g_disableXSC_cache || g_frameConstants.currViewProjNoJitter != xsc->ViewProj || g_frameConstants.taaSampleIdx != taaSampleIdxForXSC_cache)
+					{
+						taaSampleIdxForXSC_cache = g_frameConstants.taaSampleIdx;
+
 						g_frameConstants.currViewMatrix = xsc->ViewMatrix;
+						g_frameConstants.currViewProjNoJitter = xsc->ViewProj;
+						g_frameConstants.currInvViewProjNoJitter = glm::inverse(glm::dmat4(g_frameConstants.currViewProjNoJitter));
 
 						glm::mat4 jitterAdd;
 						jitterAdd[0][3] = sampleOffset.x;
 						jitterAdd[1][3] = sampleOffset.y;
 
-						g_frameConstants.currViewProjNoJitter = xsc->ViewProj;
-						g_frameConstants.currInvViewProjNoJitter = glm::inverse(glm::dmat4(g_frameConstants.currViewProjNoJitter));
-
-						g_defaultXSC_cache.SecondaryProj		= glm::mat4(glm::dmat4(xsc->SecondaryProj) * glm::dmat4(jitterAdd));
-						g_defaultXSC_cache.ViewProj				= glm::mat4(glm::dmat4(xsc->ViewProj) * glm::dmat4(jitterAdd));
-						g_defaultXSC_cache.SecondaryViewProj	= glm::mat4(glm::dmat4(xsc->SecondaryViewProj) * glm::dmat4(jitterAdd));
-					} else {
-						matchingPass = false;
+						g_defaultXSC_cache.SecondaryProj		= xsc->SecondaryProj;
+						g_defaultXSC_cache.ViewProj				= xsc->ViewProj;
+						g_defaultXSC_cache.SecondaryViewProj	= xsc->SecondaryViewProj;
 					}
+				} else {
+					matchingPass = false;
 				}
 
 				if (matchingPass)
 				{
-					xsc->SecondaryProj		= g_defaultXSC_cache.SecondaryProj;
-					xsc->ViewProj			= g_defaultXSC_cache.ViewProj;
-					xsc->SecondaryViewProj	= g_defaultXSC_cache.SecondaryViewProj;
+					glm::mat4 jitterAdd;
+					jitterAdd[0][3] = sampleOffset.x;
+					jitterAdd[1][3] = sampleOffset.y;
+
+					xsc->SecondaryProj		= glm::mat4(glm::dmat4(g_defaultXSC_cache.SecondaryProj) * glm::dmat4(jitterAdd));
+					xsc->ViewProj			= glm::mat4(glm::dmat4(g_defaultXSC_cache.ViewProj) * glm::dmat4(jitterAdd));
+					xsc->SecondaryViewProj	= glm::mat4(glm::dmat4(g_defaultXSC_cache.SecondaryViewProj) * glm::dmat4(jitterAdd));
 				}
 			}
 
@@ -410,8 +384,8 @@ HRESULT WINAPI Unmap_hook(
 			jitterRemove[0][3] = -1.0 * sampleOffset.x;
 			jitterRemove[1][3] = -1.0 * sampleOffset.y;
 
-			glm::mat4 shadowJitterRemove = glm::mat4(glm::dmat4(g_frameConstants.currViewProjNoJitter) * jitterRemove * g_frameConstants.currInvViewProjNoJitter);
-			psc->Spotlight0_Transform = shadowJitterRemove * psc->Spotlight0_Transform;
+			glm::dmat4 shadowJitterRemove = glm::dmat4(g_frameConstants.currViewProjNoJitter) * jitterRemove * g_frameConstants.currInvViewProjNoJitter;
+			psc->Spotlight0_Transform = glm::mat4(shadowJitterRemove * glm::dmat4(psc->Spotlight0_Transform));
 
 			g_alienResources.mappedCbDefaultPSC = nullptr;
 		}

@@ -27,6 +27,17 @@ namespace
 	CComPtr<ID3D11Resource>		g_origBloomMergeResource = nullptr;
 }
 
+// Hook for Cinematic Tools or whatever might want to render an overlay.
+// Hooking Present mostly works, but it's a highly contended hook, and apps have a tendency to remove each other's hooks.
+// For example, Fraps nukes the Present hook of Cinematic Tools.
+extern "C" __declspec(dllexport) void __cdecl aliasIsolation_hookableOverlayRender(ID3D11Device* device, ID3D11DeviceContext* context)
+{
+	__asm {
+		nop; nop; nop; nop;
+		nop; nop; nop; nop;
+		nop; nop; nop; nop;
+	}
+}
 
 ID3D11Buffer* createConstantBuffer(unsigned sizeBytes)
 {
@@ -249,6 +260,8 @@ bool caOnDraw(ID3D11DeviceContext* context, ID3D11VertexShader* currentVs, ID3D1
 
 		ProfileBlock profile("ca");
 		context->Draw(3, 0);
+
+		aliasIsolation_hookableOverlayRender(g_device, context);
 
 		return true;
 	}

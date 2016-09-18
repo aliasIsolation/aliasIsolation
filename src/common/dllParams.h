@@ -1,8 +1,10 @@
 #pragma once
 
 struct SharedDllParams {
-	char	aliasIsolationRootDir[512];
-	bool	terminate;
+	char	aliasIsolationRootDir[2048] = {};
+	char	cinematicToolsDllPath[2048] = {};
+	bool	terminate = false;
+	bool	cinematicToolsEnable = false;
 };
 
 SharedDllParams	getSharedDllParams();

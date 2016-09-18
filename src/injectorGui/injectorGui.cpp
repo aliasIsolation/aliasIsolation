@@ -26,15 +26,16 @@ namespace fs = std::experimental::filesystem;
 #include <nana/gui/filebox.hpp>
 
 std::string	getAliasIsolationDllPath();
+std::string	getCinematicToolsDllPath();
 bool		getAiSteamInstallPath(std::string *const result);
 
 void	onSettingsChanged(const Settings& settings);
 void	fatalError(const char* lpszFunction);
 void	detach();
-void	onInject(const std::string& exePath);
+void	onInject(const std::string& exePath, bool cinematicToolsEnable);
 bool	startSuspendedProcess(const std::string& procPath, PROCESS_INFORMATION *const pi);
 DWORD	findProcess(const std::string& procName);
-bool	injectIntoProcess(const DWORD procId);
+bool	injectIntoProcess(const DWORD procId, const std::string& dllPath);
 
 
 int CALLBACK WinMain(
@@ -51,7 +52,7 @@ int CALLBACK WinMain(
 	loadSettings(&settings);
 
 	using namespace nana;
-	form fm{API::make_center(500, 400)};
+	form fm{API::make_center(500, 430)};
 	fm.caption(("Alias Isolation"));
 	place plc(fm);
 
@@ -162,6 +163,18 @@ int CALLBACK WinMain(
 	createFloatSetting("Sharpening", &settings.sharpening);
 	createFloatSetting("Chromatic aberration", &settings.chromaticAberration);
 
+	checkbox& cinematicToolsCheckbox = *[&]{
+		panel<false>& settingPanel = *settingsGroup.create_child<panel<false>>("list");
+		place& settingPlace = *new place;
+		settingPlace.bind(settingPanel);
+		settingPlace.div("vert <><checkbox weight=16><>");
+
+		checkbox& cinematicToolsCheckbox = *new checkbox(settingPanel);
+		settingPlace["checkbox"] << cinematicToolsCheckbox;
+		cinematicToolsCheckbox.caption("Load Matti Hietanen's Cinematic Tools (EXPERIMENTAL)");
+		return &cinematicToolsCheckbox;
+	}();
+
 	label infoLabel(fm);
 	infoLabel.format(true);
 	infoLabel.caption(
@@ -175,11 +188,11 @@ int CALLBACK WinMain(
 	launchButton.caption("Launch Alien: Isolation");
 	launchButton.events().click([&](const arg_click&){
 		if (isInstallPathValid()) {
-			onInject(aiExePath);
+			onInject(aiExePath, cinematicToolsCheckbox.checked());
 		}
 	});
 
-	plc.div("vert margin=15 gap=15 <vert main gap=15 arrange=[120, 100]><<><launchButton weight=70%><> weight=30>");
+	plc.div("vert margin=15 gap=15 <vert main gap=15 arrange=[120, 140]><<><launchButton weight=70%><> weight=30>");
 	plc.field("main") << gameDirGroup << settingsGroup << infoLabel;
 	plc.field("launchButton") << launchButton;
 	plc.collocate();
@@ -197,7 +210,7 @@ void onSettingsChanged(const Settings& settings)
 	saveSettings(settings);
 }
 
-void onInject(const std::string& exePathString)
+void onInject(const std::string& exePathString, bool cinematicToolsEnable)
 {
 	{
 		SharedDllParams dllParams;
@@ -206,6 +219,8 @@ void onInject(const std::string& exePathString)
 		//const fs::path dllDir = fs::path(getAliasIsolationDllPath()).parent_path();
 		//const std::string dllDirStr = dllDir.string();
 		//strncpy(dllParams.symbolSearchPath, dllDirStr.c_str(), sizeof(dllParams.symbolSearchPath)-1);
+		dllParams.cinematicToolsEnable = cinematicToolsEnable;
+		strncpy(dllParams.cinematicToolsDllPath, getCinematicToolsDllPath().c_str(), sizeof(dllParams.cinematicToolsDllPath)-1);
 		setSharedDllParams(dllParams);
 	}
 
@@ -213,20 +228,21 @@ void onInject(const std::string& exePathString)
 	fs::path aiInstallDir = exePath.parent_path();
 
 	const bool isSteamVersion = fs::exists(aiInstallDir / "STEAM_API.DLL");
+	const std::string aliasIsolationDllPath = getAliasIsolationDllPath();
 
 	if (isSteamVersion)
 	{
 		const DWORD steamProcId = findProcess("Steam.exe");
 		if (steamProcId)
 		{
-			injectIntoProcess(steamProcId);
+			injectIntoProcess(steamProcId, aliasIsolationDllPath);
 		}
 	}
 
 	PROCESS_INFORMATION gameProcInfo;
 	if (startSuspendedProcess(exePathString, &gameProcInfo))
 	{
-		injectIntoProcess(gameProcInfo.dwProcessId);
+		injectIntoProcess(gameProcInfo.dwProcessId, aliasIsolationDllPath);
 		ResumeThread(gameProcInfo.hThread);
 	}
 }
@@ -266,7 +282,7 @@ bool startSuspendedProcess(const std::string& procPath, PROCESS_INFORMATION *con
 	}
 }
 
-bool injectIntoProcess(const DWORD procId)
+bool injectIntoProcess(const DWORD procId, const std::string& dllPath)
 {
 	const HANDLE proc = OpenProcess(PROCESS_ALL_ACCESS, FALSE, procId); 
 	if (!proc) { 
@@ -275,7 +291,6 @@ bool injectIntoProcess(const DWORD procId)
 		return false; 
 	} 
 
-	const std::string dllPath = getAliasIsolationDllPath();
 	if (isAlreadyInjected(proc, dllPath)) {
 		CloseHandle(proc);
 		//MessageBox(NULL, "DLL already injected!", "Error", MB_OK); 
@@ -324,6 +339,14 @@ std::string getAliasIsolationDllPath()
 	GetModuleFileNameA(getCurrentModule(), modulePath, sizeof(modulePath));
 	PathRemoveFileSpec(modulePath);
 	return std::string(modulePath) + "\\aliasIsolation.dll";
+}
+
+std::string getCinematicToolsDllPath()
+{
+	char modulePath[_MAX_PATH];
+	GetModuleFileNameA(getCurrentModule(), modulePath, sizeof(modulePath));
+	PathRemoveFileSpec(modulePath);
+	return std::string(modulePath) + "\\cinematicTools.dll";
 }
 
 bool getAiSteamInstallPath(std::string *const result)

@@ -36,6 +36,32 @@ inline bool ends_with(std::wstring const & value, std::wstring const & ending)
     return std::equal(ending.rbegin(), ending.rend(), value.rbegin());
 }
 
+int __cdecl ovr_Initialize_hook(const void* params)
+{
+	// Return an error
+	return 1;
+}
+void* ovr_Initialize_handle = nullptr;
+
+// This will prevent the Oculus runtime from initializing. This mod doesn't support the unofficial OVR mode.
+// It would look completely broken, and might also give some trouble dependong on what the Oculus SDK does.
+void disableOvr()
+{
+	HMODULE hModule = GetModuleHandleA("AI.exe");
+	void *const ovr_Initialize_handle = (LPVOID)GetProcAddress(hModule, "ovr_Initialize");
+	if (ovr_Initialize_handle)
+	{
+		void* orig;
+		MH_CHECK(MH_CreateHook(ovr_Initialize_handle, &ovr_Initialize_hook, &orig));
+		MH_CHECK(MH_EnableHook(ovr_Initialize_handle));
+	}
+}
+
+void loadCinematicTools()
+{
+	LoadLibraryA(g_dllParams.cinematicToolsDllPath);
+}
+
 
 char g_modulePath[_MAX_PATH];
 char CreateProcessW_hookBytesHead[8];
@@ -184,15 +210,26 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 
 		installCreateProcessHook();
 
+		disableOvr();
 		hookRendering();
 
 		g_hModule = hModule;
 		CreateThread(NULL, NULL, &terminationWatchThread, NULL, NULL, NULL);
 
+		if (g_dllParams.cinematicToolsEnable && GetModuleHandleA("AI.exe"))
+		{
+			loadCinematicTools();
+		}
+
 		break;
 	}
 	case DLL_PROCESS_DETACH:
 		//MessageBoxA(NULL, "DLL_PROCESS_DETACH", NULL, NULL);
+
+		if (ovr_Initialize_handle)
+		{
+			MH_CHECK(MH_DisableHook(ovr_Initialize_handle));
+		}
 
 		unhookRendering();
 		MH_Uninitialize();

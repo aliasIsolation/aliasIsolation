@@ -1,3 +1,5 @@
 settings.txt
 .tundra2.*
 t2-output
+src/external/boost
+compileTaa.cmd

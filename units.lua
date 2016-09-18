@@ -80,5 +80,51 @@ local injectorGui = Program {
 	}
 }
 
+local cinematicTools = SharedLibrary {
+	Name = "cinematicTools",
+	Depends = { minhook },
+	Includes = {
+		"C:/Program Files (x86)/Windows Kits/8.1/Include/winrt",
+		"src/external/DirectX/Include",
+		"src/external/DirectXTK/Inc",
+		"src/external/minhook/include",
+		"src/external/boost",
+		"src/cinematicTools",
+		"src/cinematicTools/renderer",
+		"src/external/FW1FontWrapper_1_1",
+		"src/external/FX11/inc",
+	},
+	Sources = {
+		Glob { Dir = "src/cinematicTools", Extensions = {".cpp", ".h"} },
+		Glob { Dir = "src/external/FW1FontWrapper_1_1/Source", Extensions = {".cpp", ".h"} },
+		"src/external/DirectXTK/Src/SpriteBatch.cpp",
+		"src/external/DirectXTK/Src/CommonStates.cpp",
+		"src/external/DirectXTK/Src/VertexTypes.cpp",
+	},
+	Libs = {
+		{
+			"Shlwapi.lib", "user32.lib", "Advapi32.lib", "Comdlg32.lib", "Gdi32.lib", "Shell32.lib", "psapi.lib", "dbghelp.lib",
+			"src/external/DirectX/Lib/x86/DXErr.lib",
+			"src/external/DirectX/Lib/x86/d3dx11.lib",
+			"XInput.lib";
+			Config = {"win*"}
+		},
+		{
+			"src/external/boost/libboost_chrono-vc140-mt-sgd-1_61.lib",
+			"src/external/boost/libboost_system-vc140-mt-sgd-1_61.lib",
+			"src/external/boost/libboost_date_time-vc140-mt-sgd-1_61.lib",
+			"src/external/FX11/Bin/Desktop_2015/Win32/Debug/Effects11d.lib";
+			Config = {"*-*-debug-*"}
+		},
+		{
+			"src/external/boost/libboost_chrono-vc140-mt-s-1_61.lib",
+			"src/external/boost/libboost_system-vc140-mt-s-1_61.lib",
+			"src/external/boost/libboost_date_time-vc140-mt-s-1_61.lib",
+			"src/external/FX11/Bin/Desktop_2015/Win32/Release/Effects11.lib";
+			Config = {"*-*-release"}
+		}
+	}
+}
+
 Default(dll)
-Default(injector)
+Default(injectorGui)

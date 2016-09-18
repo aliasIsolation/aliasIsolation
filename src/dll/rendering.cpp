@@ -111,6 +111,13 @@ HRESULT WINAPI Draw_hook(
 	context->VSGetShader(&currentVs.p, nullptr, nullptr);
 	context->PSGetShader(&currentPs.p, nullptr, nullptr);
 
+	if (currentPs == g_alienResources.cameraMotionPs && g_alienResources.cameraMotionPs != nullptr)
+	{
+		CComPtr<ID3D11ShaderResourceView> depthSrv = nullptr;
+		context->PSGetShaderResources(8, 1, &depthSrv);
+		g_alienResources.depthSrv = depthSrv;
+	}
+
 	taaOnDraw(context, currentVs, currentPs);
 
 	if (caOnDraw(context, currentVs, currentPs, origDrawFn)) {
@@ -234,9 +241,6 @@ const DXGI_SWAP_CHAIN_DESC *pSwapChainDesc,
 ) {
 	//MessageBoxA(NULL, "D3D11CreateDeviceAndSwapChain_hook called", NULL, NULL);
 
-	g_frameConstants.screenWidth = pSwapChainDesc->BufferDesc.Width;
-	g_frameConstants.screenHeight = pSwapChainDesc->BufferDesc.Height;
-
 	HRESULT res = D3D11CreateDeviceAndSwapChain_orig(
 		pAdapter,
 		DriverType,
@@ -251,6 +255,16 @@ const DXGI_SWAP_CHAIN_DESC *pSwapChainDesc,
 		pFeatureLevel,
 		ppImmediateContext
 	);
+
+	// We only care about the first call to this function. Other hook-based mods will sometimes create their own devices,
+	// but we don't care about those, and don't want to inject into those.
+	if (g_device)
+	{
+		return res;
+	}
+
+	g_frameConstants.screenWidth = pSwapChainDesc->BufferDesc.Width;
+	g_frameConstants.screenHeight = pSwapChainDesc->BufferDesc.Height;
 
 	g_device = *ppDevice;
 

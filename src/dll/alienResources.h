@@ -20,6 +20,7 @@ struct AlienResources
 
 	CComPtr<ID3D11ShaderResourceView>	velocitySrv = nullptr;
 	CComPtr<ID3D11RenderTargetView>		velocityRtv = nullptr;
+	CComPtr<ID3D11ShaderResourceView>	depthSrv = nullptr;
 	CComPtr<ID3D11ShaderResourceView>	mainTexView = nullptr;
 
 	CComPtr<ID3D11Buffer>				cbDefaultXSC = nullptr;
