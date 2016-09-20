@@ -48,7 +48,7 @@ void Main::Init()
 	Log::Write("INSERT to toggle menu");
 	Log::Write("UP and DOWN to navigate");
 	Log::Write("ENTER or RIGHT SHIFT to toggle or change value");
-	Log::Write("+ and - or PGUP and PGDOWN to change value ");
+	Log::Write("+ and - or RIGHT and LEFT to change value ");
 	Log::Write("BACKSPACE to return to previous menu");
 	Log::Write("Use numpad to rotate the camera when game is frozen");
 

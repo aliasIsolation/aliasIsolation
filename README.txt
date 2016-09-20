@@ -46,6 +46,9 @@ Building from source
 
 You need to have Visual Studio 2015. Community Edition works fine.
 
+Download Boost 1.61 and put it into src/external/boost/boost. For example, src/external/boost/boost/config.hpp.
+Compile Boost for static CRT, and put the libs into src/external/boost. For example, src/external/boost/libboost_chrono-vc140-mt-s-1_61.lib.
+
 If you want to just build the binaries, but don't care about Visual Studio solution files, just run "compile.cmd". They output will be in "t2-output/win32-msvc-release-default".
 
 If you'd like to open the project in Visual Studio, run "sln-vs2015.cmd", and then open "t2-output/aliasIsolation.sln".

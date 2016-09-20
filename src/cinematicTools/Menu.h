@@ -5,6 +5,7 @@
 #include <windows.h>
 #include <sstream>
 #include <vector>
+#include <functional>
 #include <d3d11.h>
 #include <DirectXMath.h>
 
@@ -77,13 +78,15 @@ private:
 class ToggleableItem : public MenuItem
 {
 public:
+	ToggleableItem(char* name, void* Function, std::function<bool()> valuePred);
 	ToggleableItem(char* name, void* Function, bool* value);
 	void Draw(bool selected, XMFLOAT2 position, int tab);
 	void Click();
 	string GetType() { return "ToggeleableItem"; };
 
 private:
-	bool* m_toggled;
+	std::function<bool()> m_valuePredicate;
+	//bool* m_toggled;
 	void* Function;
 };
 

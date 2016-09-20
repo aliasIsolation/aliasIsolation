@@ -2,6 +2,7 @@
 #include <DirectXMath.h>
 #include <Windows.h>
 #include <XInput.h>
+#include <vector>
 
 using namespace DirectX;
 
@@ -13,11 +14,37 @@ public:
 	float dY;
 };
 
-class CameraState
+struct CameraSnapshot
 {
-public:
 	XMVECTOR m_position;
 	XMVECTOR m_rotation;
+};
+
+struct CameraReplayController
+{
+	bool isRecording() const { return m_recording; }
+	bool isPlaying() const { return m_playing; }
+
+	void put(const CameraSnapshot& s);
+	void get(CameraSnapshot *const s) const;
+	bool advance();
+
+	void startRecording();
+	void stopRecording();
+
+	void startPlayback();
+	void stopPlayback();
+
+private:
+	std::vector<CameraSnapshot> m_snapshots;
+	int m_playbackPosition = 0;
+	bool m_playing = false;
+	bool m_recording = false;
+};
+
+class CameraState : public CameraSnapshot
+{
+public:
 	float m_speed;
 	float m_rotationSpeed;
 	float m_rollSpeed;
@@ -54,8 +81,10 @@ public:
 	void toggleCamera();
 
 	bool* isEnabled() { return &m_enabled; }
+	const XINPUT_STATE& getGamepadState() const { return m_state; }
 
 	CameraState m_camera;
+	CameraReplayController m_replayController;
 
 private:
 	bool m_enabled;

@@ -94,6 +94,31 @@ void FreezeGame()
 	*freeze = !*freeze;
 }
 
+void onRecordCamera()
+{
+	if (Main::m_camera.m_replayController.isRecording())
+	{
+		Main::m_camera.m_replayController.stopRecording();
+	}
+	else
+	{
+		Main::m_camera.m_replayController.startRecording();
+	}
+}
+
+void onPlaybackCamera()
+{
+	if (Main::m_camera.m_replayController.isPlaying())
+	{
+		Main::m_camera.m_replayController.stopPlayback();
+	}
+	else
+	{
+		Main::m_camera.m_replayController.startPlayback();
+	}
+}
+
+
 MenuItem::MenuItem()
 {
 }
@@ -122,12 +147,16 @@ void SubMenuItem::Click()
 	Main::m_menu.setSelectedMenu(this->index);
 }
 
-ToggleableItem::ToggleableItem(char* name, void* function, bool* value)
+ToggleableItem::ToggleableItem(char* name, void* function, std::function<bool()> valuePred)
 {
 	this->label = name;
 	this->Function = function;
-	this->m_toggled = value;
+	this->m_valuePredicate = valuePred;
 }
+
+ToggleableItem::ToggleableItem(char* name, void* function, bool* value)
+	: ToggleableItem(name, function, [value]{ return *value; })
+{}
 
 void ToggleableItem::Draw(bool selected, XMFLOAT2 position, int tab)
 {
@@ -135,7 +164,7 @@ void ToggleableItem::Draw(bool selected, XMFLOAT2 position, int tab)
 		m_pDx11Renderer._RenderText(position.x*resolutionMultiplier_W, position.y*resolutionMultiplier_H, 0xFF1010FF, 14.0f*resolutionMultiplier_W, FW1_RESTORESTATE, this->label);
 	else
 		m_pDx11Renderer._RenderText(position.x*resolutionMultiplier_W, position.y*resolutionMultiplier_H, 0xFFFFFFFF, 14.0f*resolutionMultiplier_W, FW1_RESTORESTATE, this->label);
-	if (*m_toggled)
+	if (m_valuePredicate())
 		m_pDx11Renderer._RenderText(position.x*resolutionMultiplier_W + tab*resolutionMultiplier_W, position.y*resolutionMultiplier_H, 0xFFFFFFFF, 14.0f*resolutionMultiplier_W, FW1_RESTORESTATE, "[X]");
 	else
 		m_pDx11Renderer._RenderText(position.x*resolutionMultiplier_W + tab*resolutionMultiplier_W, position.y*resolutionMultiplier_H, 0xFFFFFFFF, 14.0f*resolutionMultiplier_W, FW1_RESTORESTATE, "[  ]");
@@ -426,7 +455,9 @@ void Menu::Init(ID3D11Device* pDevice, ID3D11DeviceContext* pContext)
 	MainMenu.push_back(new SubMenuItem("Freeze actors", 3));
 	MainMenu.push_back(new SubMenuItem("Freeze animations", 4));
 	MainMenu.push_back(new ToggleableItem("Freeze game", &FreezeGame, (bool*)Offsets::AI_FreezeGame));
-	//MainMenu.push_back(new ToggleableItem("Invisibility", NULL));
+	MainMenu.push_back(new SeparatorItem("----"));
+	MainMenu.push_back(new ToggleableItem("Record camera", &onRecordCamera, [=]{ return Main::m_camera.m_replayController.isRecording(); }));
+	MainMenu.push_back(new ToggleableItem("Playback camera", &onPlaybackCamera, [=]{ return Main::m_camera.m_replayController.isPlaying(); }));
 
 	std::vector<MenuItem*> freeCamOptions;
 	freeCamOptions.push_back(new FloatItem("Movement speed", &Main::m_camera.m_camera.m_speed, 0.01f));
@@ -461,7 +492,7 @@ void Menu::Init(ID3D11Device* pDevice, ID3D11DeviceContext* pContext)
 	postProcess.push_back(new FloatItem("Desharp", &Main::m_postProcess.m_settings.m_sharpness, 0.01f));
 	postProcess.push_back(new FloatItem("Lens effect", &Main::m_postProcess.m_settings.m_lenseThing, 0.01f));
 
-	menus.push_back(new MenuList("MAIN MENU", MainMenu, 0, 140, XMFLOAT2(100,200)));
+	menus.push_back(new MenuList("MAIN MENU", MainMenu, 0, 140, XMFLOAT2(100, 18 * MainMenu.size())));
 	menus.push_back(new MenuList("Freecamera Options", freeCamOptions, 0, 130, XMFLOAT2(100, 180)));
 	menus.push_back(new MenuList("Post processing", postProcess, 0, 130, XMFLOAT2(100, 460)));
 	menus.push_back(new CharacterMenuList("Freeze character", 0, 140, XMFLOAT2(100, 400)));
@@ -518,12 +549,14 @@ void Menu::Update()
 
 		if (!m_drawMenu) continue;
 
-		if ((GetAsyncKeyState(VK_RETURN) & 0x8000) || (GetAsyncKeyState(VK_RSHIFT) & 0x8000))
+		const WORD gamepadButtons = Main::m_camera.getGamepadState().Gamepad.wButtons;
+
+		if ((GetAsyncKeyState(VK_RETURN) & 0x8000) || (GetAsyncKeyState(VK_RSHIFT) & 0x8000) || (gamepadButtons & XINPUT_GAMEPAD_A))
 		{
 			menus[selectedMenu]->Click(selectedIndex);
 			Sleep(200);
 		}
-		if (GetAsyncKeyState(VK_BACK) & 0x8000)
+		if ((GetAsyncKeyState(VK_BACK) & 0x8000) || (gamepadButtons & XINPUT_GAMEPAD_B))
 		{
 			if (inputActive)
 			{
@@ -596,7 +629,7 @@ void Menu::Update()
 			continue;
 		}
 
-		if (GetAsyncKeyState(VK_DOWN) & 0x8000)
+		if ((GetAsyncKeyState(VK_DOWN) & 0x8000) || (gamepadButtons & XINPUT_GAMEPAD_DPAD_DOWN))
 		{
 		moveDown:
 			selectedIndex += 1;
@@ -622,7 +655,7 @@ void Menu::Update()
 
 			Sleep(150);
 		}
-		if (GetAsyncKeyState(VK_UP) & 0x8000)
+		if ((GetAsyncKeyState(VK_UP) & 0x8000) || (gamepadButtons & XINPUT_GAMEPAD_DPAD_UP))
 		{
 		moveUp:
 			selectedIndex -= 1;
@@ -650,7 +683,7 @@ void Menu::Update()
 
 			Sleep(150);
 		}
-		if ((GetAsyncKeyState(VK_ADD) & 0x8000) || GetAsyncKeyState(VK_NEXT) & 0x8000)
+		if ((GetAsyncKeyState(VK_ADD) & 0x8000) || (GetAsyncKeyState(VK_RIGHT) & 0x8000) || (gamepadButtons & XINPUT_GAMEPAD_DPAD_RIGHT))
 		{
 			if (selectedValue && !isDouble)
 			{
@@ -665,7 +698,7 @@ void Menu::Update()
 			}
 			Sleep(10);
 		}
-		if ((GetAsyncKeyState(VK_SUBTRACT) & 0x8000) || (GetAsyncKeyState(VK_PRIOR) & 0x8000))
+		if ((GetAsyncKeyState(VK_SUBTRACT) & 0x8000) || (GetAsyncKeyState(VK_LEFT) & 0x8000) || (gamepadButtons & XINPUT_GAMEPAD_DPAD_LEFT))
 		{
 			if (selectedValue && !isDouble)
 				*selectedValue = *selectedValue - increaseAmount;

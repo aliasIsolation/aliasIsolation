@@ -13,7 +13,7 @@ void Camera::Init()
 {
 	m_camera.m_speed = 1;
 	m_camera.m_rotationSpeed = 1;
-	m_camera.m_rollSpeed = 1;
+	m_camera.m_rollSpeed = 0;
 	m_camera.m_boostMultiplier = 2;
 	XMVECTOR empty = XMVectorSet(0, 0, 0, 0);
 	for (int i = 0; i < 100; i++)
@@ -59,59 +59,73 @@ void Camera::Update(double dt)
 	{
 		updateController();
 
-		XMVECTOR averageMoveVector = XMVectorSet(0,0,0,0);
-		XMFLOAT3 averageRotVector(0,0,0);
-		float averageBoost = 0;
-		for (int i = 0; i < 100; i++)
+		if (!m_replayController.isPlaying())
 		{
-			averageMoveVector = XMVectorAdd(averageMoveVector, m_averageMovement[i]);
-			averageRotVector = XMFLOAT3(averageRotVector.x + m_averageRotation[i].x, averageRotVector.y + m_averageRotation[i].y, averageRotVector.z + m_averageRotation[i].z);
-			averageBoost += m_averageBoost[i];
+			XMVECTOR averageMoveVector = XMVectorSet(0,0,0,0);
+			XMFLOAT3 averageRotVector(0,0,0);
+			float averageBoost = 0;
+			for (int i = 0; i < 100; i++)
+			{
+				averageMoveVector = XMVectorAdd(averageMoveVector, m_averageMovement[i]);
+				averageRotVector = XMFLOAT3(averageRotVector.x + m_averageRotation[i].x, averageRotVector.y + m_averageRotation[i].y, averageRotVector.z + m_averageRotation[i].z);
+				averageBoost += m_averageBoost[i];
+			}
+
+			averageMoveVector = XMVectorSet(averageMoveVector.m128_f32[0] / 100, averageMoveVector.m128_f32[1] / 100, averageMoveVector.m128_f32[2] / 100, 0);
+			averageRotVector = XMFLOAT3(averageRotVector.x / 100, averageRotVector.y / 100, averageRotVector.z/100);
+			averageBoost = averageBoost / 100;
+
+			m_camera.m_rotation.m128_f32[0] -= averageRotVector.x * dt * m_camera.m_rotationSpeed;
+			m_camera.m_rotation.m128_f32[1] += averageRotVector.y * dt * m_camera.m_rotationSpeed;
+			m_camera.m_rotation.m128_f32[2] += averageRotVector.z * dt * m_camera.m_rollSpeed;
+			m_camera.m_rotation = XMVectorClamp(m_camera.m_rotation, XMVectorSet((-(PI/2)+0.001), -100000, -100000, 0), XMVectorSet((PI/2)-0.001, 100000, 100000, 0));
+
+			XMMATRIX* rotation = (XMMATRIX*)((int)pRotation + 0x280);
+
+			XMMATRIX rotationMatrix;
+			rotationMatrix.r[0] = XMVectorSet(rotation->r[0].m128_f32[0], rotation->r[1].m128_f32[0], rotation->r[2].m128_f32[0], 0);
+			rotationMatrix.r[1] = XMVectorSet(rotation->r[0].m128_f32[1], rotation->r[1].m128_f32[1], rotation->r[2].m128_f32[1], 0);
+			rotationMatrix.r[2] = XMVectorSet(rotation->r[0].m128_f32[2], rotation->r[1].m128_f32[2], rotation->r[2].m128_f32[2], 0);
+			//XMMATRIX rotationMatrix = XMMatrixRotationRollPitchYaw(0, 0, 0);
+
+			XMVECTOR worldForward = XMVectorSet(0.0f, 0.0f, -1.0f, 0.0f);
+			XMVECTOR worldRight = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
+			XMVECTOR worldUp = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+
+			XMVECTOR right = DirectX::XMVector3TransformNormal(worldRight, rotationMatrix);
+			XMVECTOR forward = DirectX::XMVector3TransformNormal(worldForward, rotationMatrix);
+			XMVECTOR up = DirectX::XMVector3TransformNormal(worldUp, rotationMatrix);
+
+			XMVECTOR deltaForward = XMVectorScale(forward, averageMoveVector.m128_f32[2]);
+			XMVECTOR deltaRight = XMVectorScale(right, averageMoveVector.m128_f32[0]);
+			XMVECTOR deltaUp = XMVectorScale(up, averageMoveVector.m128_f32[1]);
+			XMVECTOR delta1 = XMVectorAdd(deltaForward, deltaRight);
+			XMVECTOR delta = XMVectorAdd(delta1, deltaUp);
+			XMFLOAT4 deltaFloats;
+			XMStoreFloat4(&deltaFloats, delta);
+
+			m_camera.m_position = XMVectorSet(m_camera.m_position.m128_f32[0] + deltaFloats.x*m_camera.m_speed*averageBoost*dt,
+												m_camera.m_position.m128_f32[1] + deltaFloats.y*m_camera.m_speed*averageBoost*dt,
+												m_camera.m_position.m128_f32[2] + deltaFloats.z*m_camera.m_speed*averageBoost*dt, 0);
+
+			m_controllerState.dX = 0;
+			m_controllerState.dY = 0;
+			m_controllerState.dZ = 0;
+			m_controllerState.dPitch = 0;
+			m_controllerState.dYaw = 0;
+			m_controllerState.dRoll = 0;
 		}
 
-		averageMoveVector = XMVectorSet(averageMoveVector.m128_f32[0] / 100, averageMoveVector.m128_f32[1] / 100, averageMoveVector.m128_f32[2] / 100, 0);
-		averageRotVector = XMFLOAT3(averageRotVector.x / 100, averageRotVector.y / 100, averageRotVector.z/100);
-		averageBoost = averageBoost / 100;
-
-		m_camera.m_rotation.m128_f32[0] -= averageRotVector.x * dt * m_camera.m_rotationSpeed;
-		m_camera.m_rotation.m128_f32[1] += averageRotVector.y * dt * m_camera.m_rotationSpeed;
-		m_camera.m_rotation.m128_f32[2] += averageRotVector.z * dt * m_camera.m_rollSpeed;
-		m_camera.m_rotation = XMVectorClamp(m_camera.m_rotation, XMVectorSet((-(PI/2)+0.001), -100000, -100000, 0), XMVectorSet((PI/2)-0.001, 100000, 100000, 0));
-
-		XMMATRIX* rotation = (XMMATRIX*)((int)pRotation + 0x280);
-
-		XMMATRIX rotationMatrix;
-		rotationMatrix.r[0] = XMVectorSet(rotation->r[0].m128_f32[0], rotation->r[1].m128_f32[0], rotation->r[2].m128_f32[0], 0);
-		rotationMatrix.r[1] = XMVectorSet(rotation->r[0].m128_f32[1], rotation->r[1].m128_f32[1], rotation->r[2].m128_f32[1], 0);
-		rotationMatrix.r[2] = XMVectorSet(rotation->r[0].m128_f32[2], rotation->r[1].m128_f32[2], rotation->r[2].m128_f32[2], 0);
-		//XMMATRIX rotationMatrix = XMMatrixRotationRollPitchYaw(0, 0, 0);
-
-		XMVECTOR worldForward = XMVectorSet(0.0f, 0.0f, -1.0f, 0.0f);
-		XMVECTOR worldRight = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
-		XMVECTOR worldUp = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-
-		XMVECTOR right = DirectX::XMVector3TransformNormal(worldRight, rotationMatrix);
-		XMVECTOR forward = DirectX::XMVector3TransformNormal(worldForward, rotationMatrix);
-		XMVECTOR up = DirectX::XMVector3TransformNormal(worldUp, rotationMatrix);
-
-		XMVECTOR deltaForward = XMVectorScale(forward, averageMoveVector.m128_f32[2]);
-		XMVECTOR deltaRight = XMVectorScale(right, averageMoveVector.m128_f32[0]);
-		XMVECTOR deltaUp = XMVectorScale(up, averageMoveVector.m128_f32[1]);
-		XMVECTOR delta1 = XMVectorAdd(deltaForward, deltaRight);
-		XMVECTOR delta = XMVectorAdd(delta1, deltaUp);
-		XMFLOAT4 deltaFloats;
-		XMStoreFloat4(&deltaFloats, delta);
-
-		m_camera.m_position = XMVectorSet(m_camera.m_position.m128_f32[0] + deltaFloats.x*m_camera.m_speed*averageBoost*dt,
-											m_camera.m_position.m128_f32[1] + deltaFloats.y*m_camera.m_speed*averageBoost*dt,
-											m_camera.m_position.m128_f32[2] + deltaFloats.z*m_camera.m_speed*averageBoost*dt, 0);
-
-		m_controllerState.dX = 0;
-		m_controllerState.dY = 0;
-		m_controllerState.dZ = 0;
-		m_controllerState.dPitch = 0;
-		m_controllerState.dYaw = 0;
-		m_controllerState.dRoll = 0;
+		if (m_replayController.isRecording())
+		{
+			m_replayController.put(static_cast<CameraSnapshot&>(m_camera));
+		}
+		
+		if (m_replayController.isPlaying())
+		{
+			m_replayController.get(static_cast<CameraSnapshot*>(&m_camera));
+			m_replayController.advance();
+		}
 
 		if (*(bool*)(Offsets::AI_FreezeGame))
 		{
@@ -136,6 +150,13 @@ void Camera::Update(double dt)
 			rotationQuat->m128_f32[2] = rot.m128_f32[2];
 			rotationQuat->m128_f32[3] = rot.m128_f32[3];
 		}
+	}
+	else
+	{
+		// Zero out the controller state if freecam is not active. This is to prevent Menu from using it.
+		// The structure is a bit dirty in the way the controller gets exposed from the Camera. It should live
+		// externally instead. Then we wouldn't need this hack.
+		memset(&m_state, 0, sizeof(m_state));
 	}
 }
 
@@ -395,4 +416,47 @@ bool Camera::inputDisabled(void* input)
 void Camera::rotationHook(void* rotation)
 {
 	pRotation = rotation;
+}
+
+void CameraReplayController::put(const CameraSnapshot& s)
+{
+	m_snapshots.push_back(s);
+}
+
+void CameraReplayController::get(CameraSnapshot *const s) const
+{
+	if (m_playbackPosition < m_snapshots.size())
+	{
+		*s = m_snapshots[m_playbackPosition];
+	}
+}
+
+bool CameraReplayController::advance()
+{
+	++m_playbackPosition;
+	return m_playing = m_playbackPosition < m_snapshots.size();
+}
+
+void CameraReplayController::startRecording()
+{
+	m_snapshots.clear();
+	m_playing = false;
+	m_recording = true;
+}
+
+void CameraReplayController::stopRecording()
+{
+	m_recording = false;
+}
+
+void CameraReplayController::startPlayback()
+{
+	m_playbackPosition = 0;
+	m_playing = true;
+	m_recording = false;
+}
+
+void CameraReplayController::stopPlayback()
+{
+	m_playing = false;
 }
