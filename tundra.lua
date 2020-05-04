@@ -32,7 +32,7 @@ Build {
 			Name = "win32-msvc",
 			DefaultOnHost = "windows",
 			Inherit = common,
-			Tools = { "msvc-vs2015" } 
+			Tools = { "msvc-vs2019" } 
 		},
 	},
 	IdeGenerationHints = {
@@ -41,6 +41,8 @@ Build {
 			PlatformMappings = {
 				['win64-vs2015'] = 'x64',
 				['win32-vs2015'] = 'Win32',
+				['win64-vs2019'] = 'x64',
+				['win32-vs2019'] = 'Win32',
 			},
 			-- Remap variant names to MSVC friendly names
 			VariantMappings = {
