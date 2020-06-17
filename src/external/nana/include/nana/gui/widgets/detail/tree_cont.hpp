@@ -1,6 +1,6 @@
 /*
  *	A Tree Container class implementation
- *	Copyright(C) 2003-2016 Jinhao(cnjinhao@hotmail.com)
+ *	Copyright(C) 2003-2020 Jinhao(cnjinhao@hotmail.com)
  *
  *	Distributed under the Boost Software License, Version 1.0.
  *	(See accompanying file LICENSE_1_0.txt or copy at
@@ -58,6 +58,31 @@ namespace detail
 					t = t_next;
 				}
 			}
+
+			bool is_ancestor_of(const tree_node* child) const
+			{
+				while (child)
+				{
+					if (child == this)
+						return true;
+
+					child = child->owner;
+				}
+				return false;
+			}
+
+			tree_node * front() const
+			{
+				if (this->owner && (this != this->owner->child))
+				{
+					auto i = this->owner->child;
+					while (i->next != this)
+						i = i->next;
+
+					return i;
+				}
+				return nullptr;
+			}
 		};
 
 		template<typename UserData>
@@ -70,18 +95,30 @@ namespace detail
 			typedef tree_node<element_type> node_type;
 			typedef typename node_type::value_type	value_type;
 
+			enum class enum_order
+			{
+				stop,		//Stop enumeration
+				proceed_with_children,	
+				proceed
+			};
+
 			tree_cont()
 				:root_(nullptr)
 			{}
 
 			~tree_cont()
 			{
-				clear();
+				clear(&root_);
 			}
 
-			void clear()
+			void clear(node_type* node)
 			{
-				remove(root_.child);
+				while (node->child)
+				{
+					//If there is a sibling of child, the root_.child
+					//will be assigned with the sibling.
+					remove(node->child);
+				}
 			}
 
 			bool verify(const node_type* node) const
@@ -163,6 +200,11 @@ namespace detail
 			node_type* insert(const std::string& key, const element_type& elem)
 			{
 				auto node = _m_locate<true>(key);
+
+				//Doesn't return the root node
+				if (node == &root_)
+					return nullptr;
+
 				if(node)
 					node->value.second = elem;
 				return node;
@@ -176,12 +218,14 @@ namespace detail
 
 			node_type* find(const std::string& path) const
 			{
-				return _m_locate(path);
+				auto p = _m_locate(path);
+				return (&root_ == p ? nullptr : p);
 			}
 
 			node_type* ref(const std::string& path)
 			{
-				return _m_locate<true>(path);
+				auto p = _m_locate<true>(path);
+				return (&root_ == p ? nullptr : p);
 			}
 
 			unsigned indent_size(const node_type* node) const
@@ -198,59 +242,6 @@ namespace detail
 			}
 
 			template<typename Functor>
-			void for_each(node_type* node, Functor f)
-			{
-				if(nullptr == node) node = root_.child;
-				int state = 0;	//0: Sibling, the last is a sibling of node
-								//1: Owner, the last is the owner of node
-								//>= 2: Children, the last is is a child of the node that before this node.
-				while(node)
-				{
-					switch(f(*node, state))
-					{
-					case 0: return;
-					case 1:
-						{
-							if(node->child)
-							{
-								node = node->child;
-								state = 1;
-							}
-							else
-								return;
-							continue;
-						}
-						break;
-					}
-
-					if(node->next)
-					{
-						node = node->next;
-						state = 0;
-					}
-					else
-					{
-						state = 1;
-						if(node == &root_)	return;
-
-						while(true)
-						{
-							++state;
-							if(node->owner->next)
-							{
-								node = node->owner->next;
-								break;
-							}
-							else
-								node = node->owner;
-
-							if(node == &root_)	return;
-						}
-					}
-				}
-			}
-
-			template<typename Functor>
 			void for_each(node_type* node, Functor f) const
 			{
 				if(nullptr == node) node = root_.child;
@@ -259,24 +250,18 @@ namespace detail
 								//>= 2: Children, the last is is a child of the node that before this node.
 				while(node)
 				{
-					switch(f(*node, state))
-					{
-					case 0: return;
-					case 1:
-						{
-							if(node->child)
-							{
-								node = node->child;
-								state = 1;
-							}
-							else
-								return;
-							continue;
-						}
-						break;
-					}
+					enum_order order = f(*node, state);
 
-					if(node->next)
+					if (enum_order::stop == order)
+					{
+						return;
+					}
+					else if (node->child && (enum_order::proceed_with_children == order))
+					{
+						node = node->child;
+						state = 1;
+					}
+					else if(node->next)
 					{
 						node = node->next;
 						state = 0;
@@ -303,40 +288,52 @@ namespace detail
 				}
 			}
 
-			template<typename PredAllowChild>
-			unsigned child_size_if(const ::std::string& key, PredAllowChild pac) const
+			template<typename PredAllowChild, typename PredAllowNode>
+			unsigned child_size_if(const ::std::string& key, PredAllowChild pac, PredAllowNode pan) const
 			{
 				auto node = _m_locate(key);
-				return (node ? child_size_if<PredAllowChild>(*node, pac) : 0);
+				return (node ? child_size_if<PredAllowChild, PredAllowNode>(*node, pac, pan) : 0);
 			}
 
-			template<typename PredAllowChild>
-			unsigned child_size_if(const node_type& node, PredAllowChild pac) const
+			template<typename PredAllowChild, typename PredAllowNode>
+			unsigned child_size_if(const node_type& node, PredAllowChild pac, PredAllowNode pan) const
 			{
 				unsigned size = 0;
 				const node_type* pnode = node.child;
 				while(pnode)
 				{
+					if (!pan(*pnode))
+					{
+						pnode = pnode->next;
+						continue;
+					}
+
 					++size;
 					if(pnode->child && pac(*pnode))
-						size += child_size_if<PredAllowChild>(*pnode, pac);
+						size += child_size_if<PredAllowChild>(*pnode, pac, pan);
 
 					pnode = pnode->next;
 				}
 				return size;
 			}
 
-			template<typename PredAllowChild>
-			unsigned distance_if(const node_type * node, PredAllowChild pac) const
+			template<typename PredAllowChild, typename PredAllowNode>
+			std::size_t distance_if(const node_type * node, PredAllowChild pac, PredAllowNode pan) const
 			{
 				if(nullptr == node)	return 0;
 				const node_type * iterator = root_.child;
 
-				unsigned off = 0;
+				std::size_t off = 0;
 				std::stack<const node_type* > stack;
 
 				while(iterator && iterator != node)
 				{
+					if (!pan(*iterator))
+					{
+						iterator = iterator->next;
+						continue;
+					}
+
 					++off;
 
 					if(iterator->child && pac(*iterator))
@@ -356,8 +353,8 @@ namespace detail
 				return off;
 			}
 
-			template<typename PredAllowChild>
-			node_type* advance_if(node_type* node, std::size_t off, PredAllowChild pac)
+			template<typename PredAllowChild, typename PredAllowNode>
+			node_type* advance_if(node_type* node, std::size_t off, PredAllowChild pac, PredAllowNode pan)
 			{
 				if(nullptr == node)	node = root_.child;
 
@@ -365,6 +362,12 @@ namespace detail
 
 				while(node && off)
 				{
+					if (!pan(*node))
+					{
+						node = node->next;
+						continue;
+					}
+
 					--off;
 					if(node->child && pac(*node))
 					{
@@ -452,31 +455,39 @@ namespace detail
 			template<typename Function>
 			void _m_for_each(const ::std::string& key, Function function) const
 			{
-				if(key.size())
+				//Ignores separaters at the begin of key.
+				auto beg = key.find_first_not_of("\\/");
+				if (key.npos == beg)
+					return;
+
+				auto end = key.find_first_of("\\/", beg);
+
+
+				while(end != ::std::string::npos)
 				{
-					::std::string::size_type beg = 0;
-					auto end = key.find_first_of("\\/");
-
-					while(end != ::std::string::npos)
+					if(beg != end)
 					{
-						if(beg != end)
-						{
-							if(function(key.substr(beg, end - beg)) == false)
-								return;
-						}
-
-						auto next = key.find_first_not_of("\\/", end);
-						if(next != ::std::string::npos)
-						{
-							beg = next;
-							end = key.find_first_of("\\/", beg);
-						}
-						else
+						if(!function(key.substr(beg, end - beg)))
 							return;
 					}
 
-					function(key.substr(beg, key.size() - beg));
+					auto next = key.find_first_not_of("\\/", end);
+
+					if ((next == ::std::string::npos) && end)
+						return;
+
+					if (0 == end)
+					{
+						if ((!function(key.substr(0, 1))) || (next == ::std::string::npos))
+							return;
+					}
+
+					beg = next;
+					end = key.find_first_of("\\/", beg);
+
 				}
+
+				function(key.substr(beg, key.size() - beg));
 			}
 
 			template<bool CreateIfNotExists>

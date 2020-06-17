@@ -10,7 +10,7 @@
 #include <shlwapi.h>
 #include <filesystem>
 #include <algorithm>
-namespace fs = std::experimental::filesystem;
+namespace fs = std::filesystem;
 
 #include "dllParams.h"
 #include "injection.h"
@@ -63,9 +63,9 @@ int CALLBACK WinMain(
 	auto lab1 = gameDirGroup.create_child<label>("caption");
 	lab1->format(true);
 
-	auto pathTextbox = gameDirGroup.create_child<textbox>("path");
+	//auto pathTextbox = gameDirGroup.create_child<textbox>("path");
 
-	std::string steamAiInstallNotFoundText = "<color=0xa00000>The installation directory of Alien: Isolation could not be automatically determined.</>\nPlease use the field below to locate the game's main executable (<bold>AI.exe</>).";
+	//std::string steamAiInstallNotFoundText = "<color=0xa00000>The installation directory of Alien: Isolation could not be automatically determined.</>\nPlease use the field below to locate the game's main executable (<bold>AI.exe</>).";
 	std::string aiExePath = settings.aiExePath;
 
 	auto isInstallPathValid = [&]{
@@ -73,30 +73,39 @@ int CALLBACK WinMain(
 	};
 
 	if (isInstallPathValid()) {
-		lab1->caption("Alien: Isolation located.");
-		pathTextbox->caption(aiExePath);
+		//lab1->caption("Alien: Isolation located.");
+		//pathTextbox->caption(aiExePath);
 	} else if (getAiSteamInstallPath(&aiExePath)) {
 		aiExePath += "\\AI.exe";
-		lab1->caption("A Steam installation of Alien: Isolation was found. You don't need to adjust the path.");
-		pathTextbox->caption(aiExePath);
+		//lab1->caption("A Steam installation of Alien: Isolation was found. You don't need to adjust the path.");
+		//pathTextbox->caption(aiExePath);
 	} else {
-		lab1->caption(steamAiInstallNotFoundText);
-		pathTextbox->caption("C:\\path\\to\\alien\\AI.exe");
+		//lab1->caption(steamAiInstallNotFoundText);
+		//pathTextbox->caption("C:\\path\\to\\alien\\AI.exe");
 	}
 
 	auto browseButton = gameDirGroup.create_child<button>("path");
 	browseButton->caption("Browse...");
 
-	filebox fb(true);
-	fb.add_filter("Alien Isolation", "AI.exe");
+	filebox fb(0, true);
+	fb.add_filter(("Alien Isolation"), ("AI.exe"));
+	fb.add_filter(("All Files"), ("*.*"));
 
 	browseButton->events().click([&] {
-		if (fb()) {
-			aiExePath = fb.file();
-			pathTextbox->caption(aiExePath);
+		// Show the file selection window.
+		auto files = fb();
+		//fb.show();
+		//fb.init_file("AI.exe");
+		//std::string exePath = fb.path().u8string().c_str();
+		// If the user selects a file, then store its path in aiExePath.
+		if (!files.empty()) {
+			aiExePath = files.front().string();
 		}
-	});
 
+		// Update the path textbox with the user-selected AI EXE path.
+		//pathTextbox->caption(aiExePath);
+	});
+	/*
 	pathTextbox->events().text_changed([&] {
 		aiExePath = pathTextbox->caption();
 		if (isInstallPathValid()) {
@@ -107,11 +116,12 @@ int CALLBACK WinMain(
 			lab1->caption(steamAiInstallNotFoundText);
 		}
 	});
+	*/
 
 	group settingsGroup(fm);
 	settingsGroup.caption("Settings");
 	settingsGroup.div("vert gap=5 margin=10 list arrange=[30,repeated]");
-
+	/*
 	auto createFloatSetting = [&](const char* name, float *const targetSetting)
 	{
 		panel<false>& settingPanel = *settingsGroup.create_child<panel<false>>("list");
@@ -162,7 +172,7 @@ int CALLBACK WinMain(
 
 	createFloatSetting("Sharpening", &settings.sharpening);
 	createFloatSetting("Chromatic aberration", &settings.chromaticAberration);
-
+	*/
 	checkbox& cinematicToolsCheckbox = *[&]{
 		panel<false>& settingPanel = *settingsGroup.create_child<panel<false>>("list");
 		place& settingPlace = *new place;
@@ -188,14 +198,18 @@ int CALLBACK WinMain(
 	launchButton.caption("Launch Alien: Isolation");
 	launchButton.events().click([&](const arg_click&){
 		if (isInstallPathValid()) {
-			onInject(aiExePath, cinematicToolsCheckbox.checked());
+			//onInject(aiExePath, cinematicToolsCheckbox.checked());
 		}
 	});
 
-	plc.div("vert margin=15 gap=15 <vert main gap=15 arrange=[120, 140]><<><launchButton weight=70%><> weight=30>");
+	button quitButton(fm, rectangle(20, 20, 150, 30));
+	quitButton.caption("Quit");
+	quitButton.events().click(API::exit_all);
+
+	/*plc.div("vert margin=15 gap=15 <vert main gap=15 arrange=[120, 140]><<><launchButton weight=70%><> weight=30>");
 	plc.field("main") << gameDirGroup << settingsGroup << infoLabel;
 	plc.field("launchButton") << launchButton;
-	plc.collocate();
+	plc.collocate();*/
 
 	fm.show();
 

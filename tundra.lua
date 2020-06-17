@@ -3,6 +3,7 @@ local common = {
 		GENERATE_PDB = "1",
 		CPPDEFS = { 
 			"_CRT_SECURE_NO_WARNINGS",
+			"_SILENCE_EXPERIMENTAL_FILESYSTEM_DEPRECATION_WARNING",
 			{ "_DEBUG"; Config = "*-*-debug-*"},
 		},
 		CCOPTS = { 
@@ -13,6 +14,7 @@ local common = {
 			{ "/Od", "/MT"; Config = "*-*-release" },
 		},
 		CXXOPTS = { 
+			"/std:c++17",
 			"/EHsc",
 			"/DEBUG",
 			"/Zi",
@@ -32,15 +34,15 @@ Build {
 			Name = "win32-msvc",
 			DefaultOnHost = "windows",
 			Inherit = common,
-			Tools = { "msvc-vs2015" } 
+			Tools = { "msvc-vs2019" } 
 		},
 	},
 	IdeGenerationHints = {
 		Msvc = {
 			-- Remap config names to MSVC platform names (affects things like header scanning & debugging)
 			PlatformMappings = {
-				['win64-vs2015'] = 'x64',
-				['win32-vs2015'] = 'Win32',
+				['win64-vs2019'] = 'x64',
+				['win32-vs2019'] = 'x86',
 			},
 			-- Remap variant names to MSVC friendly names
 			VariantMappings = {

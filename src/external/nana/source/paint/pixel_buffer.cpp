@@ -1,7 +1,7 @@
 /*
  *	Pixel Buffer Implementation
  *	Nana C++ Library(http://www.nanapro.org)
- *	Copyright(C) 2003-2016 Jinhao(cnjinhao@hotmail.com)
+ *	Copyright(C) 2003-2017 Jinhao(cnjinhao@hotmail.com)
  *
  *	Distributed under the Boost Software License, Version 1.0.
  *	(See accompanying file LICENSE_1_0.txt or copy at
@@ -11,7 +11,7 @@
  *	@note: The format of Xorg 16bits depth is 565
  */
 
-#include <nana/detail/platform_spec_selector.hpp>
+#include "../detail/platform_spec_selector.hpp"
 #include <nana/paint/pixel_buffer.hpp>
 #include <nana/gui/layout_utility.hpp>
 #include <nana/paint/detail/native_paint_interface.hpp>
@@ -238,10 +238,18 @@ namespace nana{	namespace paint
 				auto d = rawptr;
 				const unsigned char* s;
 
+				int src_line_bytes;
+
 				if (is_negative)
+				{
 					s = rawbits;
+					src_line_bytes = -static_cast<int>(bytes_per_line);
+				}
 				else
+				{
 					s = rawbits + bytes_per_line * (height - 1);
+					src_line_bytes = static_cast<int>(bytes_per_line);
+				}
 
 				for(std::size_t i = 0; i < height; ++i)
 				{
@@ -256,7 +264,7 @@ namespace nana{	namespace paint
 						s_p += 3;
 					}
 					d += pixel_size.width;
-					s -= bytes_per_line;
+					s -= src_line_bytes;
 				}
 			}
 			else if(16 == bits_per_pixel)
@@ -305,7 +313,7 @@ namespace nana{	namespace paint
 		}
 
 #if defined(NANA_X11)
-		//The implementation of attach in X11 is same with non-attach's, because the image buffer of drawable can't be refered indirectly
+		//The implementation of attach in X11 is same with non-attach's, because the image buffer of drawable can't be referred indirectly
 		//so the pixel_buffer::open() method may call the attached version of pixel_buffer_storage construction.
 		void detach()
 		{
@@ -328,10 +336,14 @@ namespace nana{	namespace paint
 			else if(16 == depth)
 			{
 				//The format of Xorg 16bits depth is 565
-				std::unique_ptr<unsigned short[]> table_holder(new unsigned short[256]);
-				unsigned short * const fast_table = table_holder.get();
+				std::unique_ptr<unsigned short[]> table_5_6bit_holder(new unsigned short[512]);
+				auto * const table_5bit = table_5_6bit_holder.get();
+				auto * const table_6bit = table_5_6bit_holder.get() + 256;
 				for(int i = 0; i < 256; ++i)
-					fast_table[i] = i * 31 / 255;
+				{
+					table_5bit[i] = i * 31 / 255;
+					table_6bit[i] = i * 63 / 255;
+				}
 
 				std::size_t length = width * height;
 
@@ -342,7 +354,7 @@ namespace nana{	namespace paint
 				{
 					for(auto i = raw_pixel_buffer, end = raw_pixel_buffer + length; i != end; ++i)
 					{
-						*(pixbuf_16bits++) = (fast_table[i->element.red] << 11) | ( (i->element.green * 63 / 255) << 6) | fast_table[i->element.blue];
+						*(pixbuf_16bits++) = (table_5bit[i->element.red] << 11) | ( (table_6bit[i->element.green] << 5) | table_5bit[i->element.blue]);
 					}
 				}
 				else if(height)
@@ -355,7 +367,7 @@ namespace nana{	namespace paint
 					{
 						for(auto i = sp, end = sp + width; i != end; ++i)
 						{
-							*(pixbuf_16bits++) = (fast_table[i->element.red] << 11) | ((i->element.green * 63 / 255) << 6) | fast_table[i->element.blue];
+							*(pixbuf_16bits++) = (table_5bit[i->element.red] << 11) | (table_6bit[i->element.green] << 5) | table_5bit[i->element.blue];
 						}
 
 						if(++top < height)
@@ -367,7 +379,7 @@ namespace nana{	namespace paint
 				::XPutImage(disp, dw, gc,
 					img, src_x, src_y, x, y, width, height);
 			}
-			img->data = nullptr;	//Set null pointer to avoid XDestroyImage destroyes the buffer.
+			img->data = nullptr;	//Set null pointer to avoid XDestroyImage destroys the buffer.
 			XDestroyImage(img);
 		}
 #endif
@@ -457,7 +469,8 @@ namespace nana{	namespace paint
 
 		HDC context = drawable->context;
 		HBITMAP pixmap = drawable->pixmap;
-		HBITMAP orig_bmp;
+
+		HBITMAP orig_bmp = nullptr;
 		if(need_dup)
 		{
 			context = ::CreateCompatibleDC(drawable->context);
@@ -510,10 +523,14 @@ namespace nana{	namespace paint
 		else if(16 == image->depth)
 		{
 			//The format of Xorg 16bits depth is 565
-			std::unique_ptr<unsigned[]> table_holder(new unsigned[32]);
-			unsigned * const fast_table = table_holder.get();
-			for(unsigned i = 0; i < 32; ++i)
-				fast_table[i] = (i * 255 / 31);
+			std::unique_ptr<unsigned[]> table_holder{new unsigned[96]};
+			auto * const table_5bit = table_holder.get();
+			for(std::size_t i = 0; i < 32; ++i)
+				table_5bit[i] = (i * 255 / 31);
+
+			auto * const table_6bit = table_holder.get() + 32;
+			for(std::size_t i = 0; i < 64; ++i)
+				table_6bit[i] = (i* 255 / 63); 
 
 			pixbuf += (r.x - want_r.x);
 			pixbuf += (r.y - want_r.y) * want_r.width;
@@ -524,9 +541,9 @@ namespace nana{	namespace paint
 
 				for(int x = 0; x < image->width; ++x)
 				{
-					pixbuf[x].element.red		= fast_table[(px_data[x] >> 11) & 0x1F];
-					pixbuf[x].element.green	= (px_data[x] >> 5) & 0x3F;
-					pixbuf[x].element.blue	= fast_table[px_data[x] & 0x1F];
+					pixbuf[x].element.red	= table_5bit[(px_data[x] >> 11) & 0x1F];
+					pixbuf[x].element.green	= table_6bit[(px_data[x] >> 5) & 0x3F];
+					pixbuf[x].element.blue	= table_5bit[px_data[x] & 0x1F];
 					pixbuf[x].element.alpha_channel = 0;
 				}
 				img_data += image->bytes_per_line;
@@ -778,7 +795,7 @@ namespace nana{	namespace paint
 		auto sp = storage_.get();
 		if(nullptr == sp) return;
 
-		//Test if the line intersects the rectangle, and retrive the two points that
+		//Test if the line intersects the rectangle, and retrieve the two points that
 		//are always in the area of rectangle, good_pos_beg is left point, good_pos_end is right.
 		nana::point good_pos_beg, good_pos_end;
 		if(intersection(nana::rectangle(sp->pixel_size), pos_beg, pos_end, good_pos_beg, good_pos_end))
@@ -795,7 +812,8 @@ namespace nana{	namespace paint
 		std::unique_ptr<unsigned char[]> autoptr;
 
 		auto rgb_color = clr.px_color().value;
-		nana::pixel_color_t rgb_imd;
+
+		nana::pixel_color_t rgb_imd = {};
 		if(fade)
 		{
 			autoptr = detail::alloc_fade_table(1 - fade_rate);

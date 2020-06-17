@@ -28,12 +28,13 @@ namespace nana
 		mouse_wheel,		///< A mouse scrolls the wheel on a widget.
 		mouse_drop,			///< A mouse release over a window that is registered as recipient of drag and drop.
 		expose,				///< 
-		resizing, 			///< A widget's size is sizing. In this event, A widget's size can be overrided with a new size.
+		resizing, 			///< A widget's size is sizing. In this event, A widget's size can be overridden with a new size.
 		resized,			///< A widget's size is changing.
 		move,				///< 
 		unload,				///< A form is closed by clicking the X button, only works for root widget.
 		destroy,			///< A widget is about to be destroyed.
 		focus,				///< A widget's focus is changed.
+		key_ime,
 		key_press,			///< A keyboard is pressed on a focus widget.
 		key_char,			///< The focus widget received a character.
 		key_release,		///< A keyboard is released on a focus widget.

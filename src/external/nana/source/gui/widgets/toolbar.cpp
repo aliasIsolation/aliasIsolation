@@ -1,7 +1,7 @@
 /*
  *	A Toolbar Implementation
  *	Nana C++ Library(http://www.nanapro.org)
- *	Copyright(C) 2003-2016 Jinhao(cnjinhao@hotmail.com)
+ *	Copyright(C) 2003-2018 Jinhao(cnjinhao@hotmail.com)
  *
  *	Distributed under the Boost Software License, Version 1.0.
  *	(See accompanying file LICENSE_1_0.txt or copy at
@@ -27,28 +27,6 @@ namespace nana
 	{
 		namespace toolbar
 		{
-			struct item_type
-			{
-				enum kind{ button, container};
-
-				typedef std::size_t size_type;
-
-				std::string text;
-				nana::paint::image image;
-				unsigned	pixels{0};
-				unsigned    position{ 0 }; // last item position.
-				nana::size	textsize;
-				bool		enable{true};
-
-				kind type;
-
-				item_type(const std::string& text, const nana::paint::image& img, kind type)
-					:text(text), image(img), type(type)
-				{}
-			};
-
-
-
 			class item_container
 			{
 			public:
@@ -57,11 +35,10 @@ namespace nana
 
 				~item_container()
 				{
-					for(auto ptr : cont_)
-						delete ptr;
+					clear();
 				}
 
-				void insert(size_type pos, std::string text, const nana::paint::image& img, item_type::kind type)
+				void insert(size_type pos, std::string text, const nana::paint::image& img, tool_type type)
 				{
 					item_type* m = new item_type(std::move(text), img, type);
 
@@ -73,12 +50,12 @@ namespace nana
 
 				void push_back(const std::string& text, const nana::paint::image& img)
 				{
-					insert(cont_.size(), text, img, item_type::kind::button);
+					insert(cont_.size(), text, img, tool_type::button);
 				}
 
 				void push_back(const std::string& text)
 				{
-					insert(cont_.size(), text, nana::paint::image(), item_type::kind::button);
+					insert(cont_.size(), text, nana::paint::image(), tool_type::button);
 				}
 
 				//Contributed by kmribti(pr#105)
@@ -120,6 +97,55 @@ namespace nana
 				{
 					return cont_.at(pos);
 				}
+
+				void clear()
+				{
+					for(auto ptr : cont_)
+						delete ptr;
+
+					cont_.clear();
+					right_ = npos;
+				}
+
+
+				void update_toggle_group(item_type* item, bool toggle_state, bool clicked = true)
+				{
+					if(!item)
+						return;
+
+					if(item->group.empty())
+					{
+						item->toggle = toggle_state;
+						return;
+					}
+
+					// group rules:
+					//		1. inside a group only one item at the time is selected
+					//		2. inside a group one item must always be selected
+					//		3. a group with only one item IS NOT a group
+
+					bool is_group = false;
+
+					// look for other items inside the group
+					for(auto i : cont_)
+					{
+						if(i == item)
+							continue;
+
+						if(i && i->group == item->group)
+						{
+							if(toggle_state == false && clicked == false) // needs to avoid to break rule no. 2
+								return;
+
+							is_group = true;
+							i->toggle = false;
+						}
+					}
+
+					item->toggle = is_group ? true : toggle_state;
+				}
+
+
 			private:
 				container_type cont_;
 				size_t    right_{ npos };
@@ -131,8 +157,8 @@ namespace nana
 				enum class state_t{normal, highlighted, selected};
 				const static unsigned extra_size = 6;
 
-				item_renderer(nana::paint::graphics& graph, bool textout, unsigned scale, const ::nana::color& bgcolor)
-					:graph(graph), textout(textout), scale(scale), bgcolor(bgcolor)
+				item_renderer(nana::paint::graphics& graph, unsigned scale, const ::nana::color& bgcolor, const ::nana::color& fgcolor)
+					:graph(graph), scale(scale), bgcolor(bgcolor), fgcolor(fgcolor)
 				{}
 
 				void operator()(int x, int y, unsigned width, unsigned height, item_type& item, state_t state)
@@ -146,6 +172,13 @@ namespace nana
 						if (state_t::highlighted == state || state_t::selected == state)
 							graph.gradual_rectangle(background_r.pare_off(1), bgcolor, static_cast<color_rgb>(state_t::selected == state ? 0x99CCFF : 0xC0DDFC), true);
 					}
+					else if (item.type == tool_type::toggle && item.toggle)
+					{
+						nana::rectangle background_r(x, y, width, height);
+						graph.rectangle(background_r, false, static_cast<color_rgb>(item.enable ? 0x3399FF : 0x999999));
+
+						graph.gradual_rectangle(background_r.pare_off(1), bgcolor, static_cast<color_rgb>(item.enable ? 0xC0DDFC : 0x969696), true);
+					}
 
 					if(!item.image.empty())
 					{
@@ -155,7 +188,7 @@ namespace nana
 						if (imgsize.height > scale) imgsize.height = scale;
 
 						nana::point pos(
-							x + static_cast<int>(scale + extra_size - imgsize.width) / 2, 
+							x + static_cast<int>(scale + extra_size - imgsize.width) / 2,
 							y + static_cast<int>(height - imgsize.height) / 2);
 
 						item.image.paste(::nana::rectangle{ imgsize }, graph, pos);
@@ -166,24 +199,26 @@ namespace nana
 							gh.rgb_to_wb();
 							gh.paste(graph, pos.x, pos.y);
 						}
-						else if(state == state_t::normal)
+						else if (state == state_t::normal)
+						{
 							graph.blend(nana::rectangle(pos, imgsize), ::nana::color(0xc0, 0xdd, 0xfc).blend(bgcolor, 0.5), 0.25);
+						}
 
 						x += scale;
 						width -= scale;
 					}
 
-					if(textout)
+					if(item.textout)
 					{
-						graph.string({ x + static_cast<int>(width - item.textsize.width) / 2, y + static_cast<int>(height - item.textsize.height) / 2 }, item.text);
+						graph.string({ x + static_cast<int>(width - item.textsize.width) / 2, y + static_cast<int>(height - item.textsize.height) / 2 }, item.text, fgcolor );
 					}
 				}
 
 			protected:
 				nana::paint::graphics& graph;
-				bool textout;
 				unsigned scale;
 				::nana::color bgcolor;
+				::nana::color fgcolor;
 			};
 
 			struct drawer::drawer_impl_type
@@ -192,7 +227,6 @@ namespace nana
 				paint::graphics* graph_ptr{ nullptr };
 
 				unsigned scale{16};
-				bool textout{false};
 				size_type which{npos};
 				item_renderer::state_t state{item_renderer::state_t::normal};
 
@@ -229,10 +263,11 @@ namespace nana
 					int x = 2, y = 2;
 
 					auto bgcolor = API::bgcolor(widget_->handle());
+					auto fgcolor = API::fgcolor(widget_->handle());
 					graph.palette(true, bgcolor);
-					graph.gradual_rectangle(rectangle{ graph.size() }, bgcolor.blend(colors::white, 0.9), bgcolor.blend(colors::black, 0.95), true);
+					graph.gradual_rectangle(rectangle{ graph.size() }, bgcolor.blend(colors::white, 0.1), bgcolor.blend(colors::black, 0.05), true);
 
-					item_renderer ir(graph, impl_->textout, impl_->scale, bgcolor);
+					item_renderer ir(graph, impl_->scale, bgcolor, fgcolor);
 					size_type index = 0;
 
 					for (auto item : impl_->items.container())
@@ -370,6 +405,10 @@ namespace nana
 						size_type which = _m_which(arg.pos, false);
 						if(impl_->which == which)
 						{
+							// update toggle state
+							auto m = impl_->items.at(impl_->which);
+							impl_->items.update_toggle_group(m, !m->toggle);
+
 							::nana::arg_toolbar arg{ *widget_, which };
 							widget_->events().selected.emit(arg, widget_->handle());
 
@@ -411,14 +450,77 @@ namespace nana
 						if (item->text.size())
 							item->textsize = impl_->graph_ptr->text_extent_size(item->text);
 
-						if (item->image.empty() == false)
+						if(item->image.empty())
+						{
+							if(item->textsize.width && item->textout)
+								item->pixels = item->textsize.width + 8;
+							else
+								item->pixels = impl_->scale + item_renderer::extra_size;
+						}
+						else
+						{
 							item->pixels = impl_->scale + item_renderer::extra_size;
-
-						if (item->textsize.width && impl_->textout)
-							item->pixels += item->textsize.width + 8;
+							if(item->textsize.width && item->textout)
+								item->pixels += item->textsize.width + 8;
+						}
 					}
 				}
 			//class drawer
+
+			// Item Proxy
+			item_proxy::item_proxy(::nana::toolbar* t, std::size_t pos)
+				: tb_{ t }, pos_{ pos }
+			{}
+
+			bool item_proxy::enable() const
+			{
+				return tb_->enable(pos_);
+			}
+
+			item_proxy& item_proxy::enable(bool enable_state)
+			{
+				tb_->enable(pos_, enable_state);
+				return *this;
+			}
+
+			item_proxy& item_proxy::tooltype(tool_type type)
+			{
+				tb_->tooltype(pos_, type);
+				return *this;
+			}
+
+			bool item_proxy::istoggle() const
+			{
+				return tb_->istoggle(pos_);
+			}
+
+			bool item_proxy::toggle() const
+			{
+				return tb_->toggle(pos_);
+			}
+
+			item_proxy& item_proxy::toggle(bool toggle_state)
+			{
+				tb_->toggle(pos_, toggle_state);
+				return *this;
+			}
+
+			std::string item_proxy::toggle_group() const
+			{
+				return tb_->toggle_group(pos_);
+			}
+
+			item_proxy& item_proxy::textout(bool show)
+			{
+				tb_->textout(pos_, show);
+				return *this;
+			}
+
+			item_proxy& item_proxy::toggle_group(const ::std::string& group)
+			{
+				tb_->toggle_group(pos_, group);
+				return *this;
+			}
 		}//end namespace toolbar
 	}//end namespace drawerbase
 
@@ -447,15 +549,23 @@ namespace nana
 			API::refresh_window(handle());
 		}
 
-		void toolbar::append(const std::string& text, const nana::paint::image& img)
+		drawerbase::toolbar::item_proxy toolbar::append(const std::string& text, const nana::paint::image& img)
 		{
 			get_drawer_trigger().items().push_back(text, img);
 			API::refresh_window(handle());
+			return {this, get_drawer_trigger().items().size() - 1u};
 		}
 
-		void toolbar::append(const std::string& text)
+		drawerbase::toolbar::item_proxy toolbar::append(const std::string& text)
 		{
 			get_drawer_trigger().items().push_back(text, {});
+			API::refresh_window(this->handle());
+			return {this, get_drawer_trigger().items().size() - 1u};
+		}
+
+		void toolbar::clear()
+		{
+			get_drawer_trigger().items().clear();
 			API::refresh_window(this->handle());
 		}
 
@@ -480,6 +590,101 @@ namespace nana
 				if (m && (m->enable != eb))
 				{
 					m->enable = eb;
+					API::refresh_window(this->handle());
+				}
+			}
+		}
+
+		void toolbar::tooltype(size_type index, tool_type type)
+		{
+			auto & items = get_drawer_trigger().items();
+
+			if(items.size() > index)
+			{
+				auto m = items.at(index);
+				if(m && m->type != type)
+				{
+					m->type = type;
+					API::refresh_window(this->handle());
+				}
+			}
+		}
+
+		bool toolbar::istoggle(size_type index) const
+		{
+			auto & items = get_drawer_trigger().items();
+
+			if(items.size() <= index)
+				return false;
+
+			auto m = items.at(index);
+			return (m && m->type == tool_type::toggle);
+		}
+
+		bool toolbar::toggle(size_type index) const
+		{
+			auto & items = get_drawer_trigger().items();
+
+			if(items.size() <= index)
+				return false;
+
+			auto m = items.at(index);
+			return (m && m->toggle);
+		}
+
+		void toolbar::toggle(size_type index, bool toggle_state)
+		{
+			auto & items = get_drawer_trigger().items();
+
+			if(items.size() > index)
+			{
+				auto m = items.at(index);
+				if(m)
+				{
+					items.update_toggle_group(m, toggle_state, false);
+
+					API::refresh_window(this->handle());
+				}
+			}
+		}
+
+		std::string toolbar::toggle_group(size_type index) const
+		{
+			auto & items = get_drawer_trigger().items();
+
+			if(items.size() <= index)
+				return "";
+
+			auto m = items.at(index);
+			return m ? m->group : "";
+		}
+
+		void toolbar::toggle_group(size_type index, const ::std::string& group)
+		{
+			auto & items = get_drawer_trigger().items();
+
+			if(items.size() > index)
+			{
+				auto m = items.at(index);
+				if(m && (m->group != group))
+				{
+					m->group = group;
+					API::refresh_window(this->handle());
+				}
+			}
+		}
+
+		void toolbar::textout(size_type index, bool show)
+		{
+			auto & items = get_drawer_trigger().items();
+
+			if(items.size() > index)
+			{
+				auto m = items.at(index);
+				if(m && (m->textout != show))
+				{
+					m->textout = show;
+					m->pixels = 0; //force width calculation
 					API::refresh_window(this->handle());
 				}
 			}

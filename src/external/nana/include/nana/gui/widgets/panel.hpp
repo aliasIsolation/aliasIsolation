@@ -1,7 +1,7 @@
 /**
  *	A Panel Implementation
  *	Nana C++ Library(http://www.nanaro.org)
- *	Copyright(C) 2003-2015 Jinhao(cnjinhao@hotmail.com)
+ *	Copyright(C) 2003-2017 Jinhao(cnjinhao@hotmail.com)
  *
  *	Distributed under the Boost Software License, Version 1.0. 
  *	(See accompanying file LICENSE_1_0.txt or copy at 
@@ -34,7 +34,7 @@ namespace nana
 			};
 		}// end namespace panel
 	}//end namespace drawerbase
-    /// For placing other widgets, where the bool template parameter determinte if it is  widget or lite_widget, wich in actual use make no difference.
+    /// For placing other widgets, where the bool template parameter determines if it is widget or lite_widget, which in actual use makes no difference.
 	template<bool HasBackground>
 	class panel
 		: public widget_object<typename std::conditional<HasBackground, category::widget_tag, category::lite_widget_tag>::type,
@@ -57,7 +57,7 @@ namespace nana
 
 		bool transparent() const
 		{
-			return (bground_mode::basic == API::effects_bground_mode(*this));
+			return API::is_transparent_background(*this);
 		}
 
 		void transparent(bool tr)

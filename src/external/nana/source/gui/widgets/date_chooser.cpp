@@ -1,7 +1,7 @@
 /*
  *	A date chooser Implementation
  *	Nana C++ Library(http://www.nanapro.org)
- *	Copyright(C) 2003-2016 Jinhao(cnjinhao@hotmail.com)
+ *	Copyright(C) 2003-2017 Jinhao(cnjinhao@hotmail.com)
  *
  *	Distributed under the Boost Software License, Version 1.0.
  *	(See accompanying file LICENSE_1_0.txt or copy at
@@ -93,7 +93,8 @@ namespace nana
 						r.y = static_cast<int>(newbuf.height() - r.height) / 2;
 						newbuf.stretch(nzbuf, r);
 
-						nzbuf.blend(::nana::rectangle{ nzbuf.size() }, dzbuf, nana::point(), fade * (count - i));
+						dzbuf.blend(::nana::rectangle{ nzbuf.size() }, nzbuf, {}, 1 - fade * (count - i));
+
 						graph.bitblt(refpos.x, refpos.y, dzbuf);
 
 						API::update_window(window_handle);
@@ -121,7 +122,8 @@ namespace nana
 						nzbuf.rectangle(true, colors::white);
 						newbuf.stretch(nzbuf, r);
 
-						nzbuf.blend(::nana::rectangle{ nzbuf.size() }, dzbuf, nana::point(), fade * (count - i));
+						dzbuf.blend(::nana::rectangle{ nzbuf.size() }, nzbuf, {}, 1.0 - fade * (count - i));
+
 						graph.bitblt(refpos.x, refpos.y, dzbuf);
 
 						API::update_window(window_handle);
@@ -393,7 +395,7 @@ namespace nana
 					int n = trace_.logic_pos.y * rows + trace_.logic_pos.x + 1;
 					if (page_mode::date == page)
 					{
-						if (n < 8) return false; //Here is week title bar
+						if (n < 8) return 0; //Here is week title bar
 						int dw = nana::date::day_of_week(view_month_.year, view_month_.month, 1);
 						n -= (dw ? dw + 7 : 14);
 					}
@@ -530,7 +532,7 @@ namespace nana
 					perf_transform_helper(window_handle, transf, graph, dirtybuf, gbuf, refpos);
 				}
 			private:
-				//renderring functions
+				//rendering functions
 
 				void _m_calc_basis(graph_reference graph, const nana::point& refpos)
 				{

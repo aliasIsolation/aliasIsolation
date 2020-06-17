@@ -3,3 +3,6 @@ settings.txt
 t2-output
 src/external/boost
 compileTaa.cmd
+/src/external/temp/nana
+/src/external/glm/glm/out/build/x64-Debug
+/src/external/nana/build/vc2019/.vs/nana/v16

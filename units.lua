@@ -48,7 +48,7 @@ local dll = SharedLibrary {
 		Glob { Dir = "src/dll", Extensions = {".cpp", ".h", ".inl"} }
 	},
 	Libs = {
-		 { "user32.lib", "src/external/d3dcompiler43/d3dcompiler.lib", "psapi.lib", "dbghelp.lib"; Config = {"win*"} },
+		 { "user32.lib", "src/external/d3dcompiler43/d3dcompiler.lib", "d3d11.lib", "psapi.lib", "dbghelp.lib"; Config = {"win*"} },
 	},
 }
 
@@ -73,7 +73,7 @@ local injectorGui = Program {
 		Glob { Dir = "src/injectorGui", Extensions = {".cpp", ".h"} },
 	},
 	Libs = {
-		 { "Shlwapi.lib", "user32.lib", "Advapi32.lib", "Comdlg32.lib", "Gdi32.lib", "Shell32.lib", "psapi.lib", "dbghelp.lib"; Config = {"win*"} },
+		 { "Shlwapi.lib", "user32.lib", "Advapi32.lib", "Comdlg32.lib", "Gdi32.lib", "Shell32.lib", "psapi.lib", "dbghelp.lib", "ole32.lib"; Config = {"win*"} },
 	},
 	Env = {
 		PROGOPTS = {"/SUBSYSTEM:WINDOWS"}

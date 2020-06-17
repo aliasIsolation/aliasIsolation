@@ -1,15 +1,13 @@
 /**
  *	The charset Implementation
  *	Nana C++ Library(http://www.nanapro.org)
- *	Copyright(C) 2003-2016 Jinhao(cnjinhao@hotmail.com)
+ *	Copyright(C) 2003-2017 Jinhao(cnjinhao@hotmail.com)
  *
  *	Distributed under the Boost Software License, Version 1.0.
  *	(See accompanying file LICENSE_1_0.txt or copy at
  *	http://www.boost.org/LICENSE_1_0.txt)
  *
  *	@file: nana/charset.hpp
- *
- *
  */
 
 #ifndef NANA_CHARSET_HPP
@@ -20,7 +18,7 @@ namespace nana
 {
 	namespace utf
 	{
-		/// Attempt to get a pointer to a character of UTF-8 string by a specifed character index.
+		/// Attempt to get a pointer to a character of UTF-8 string by a specified character index.
 		/// @param text_utf8 A string encoded as UTF-8.
 		/// @param pos The unicode character index.
 		/// @returns A pointer to the unicode character. It returns a null if pos is out of range. 

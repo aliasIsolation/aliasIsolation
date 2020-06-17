@@ -1,7 +1,7 @@
 /*
 *	A Dragger Implementation
 *	Nana C++ Library(http://www.nanapro.org)
-*	Copyright(C) 2003-2016 Jinhao(cnjinhao@hotmail.com)
+*	Copyright(C) 2003-2019 Jinhao(cnjinhao@hotmail.com)
 *
 *	Distributed under the Boost Software License, Version 1.0.
 *	(See accompanying file LICENSE_1_0.txt or copy at
@@ -93,9 +93,7 @@ namespace nana
 					for (auto & t : targets_)
 					{
 						t.origin = API::window_position(t.wd);
-						window owner = API::get_owner_window(t.wd);
-						if (owner)
-							API::calc_screen_point(owner, t.origin);
+						API::calc_screen_point(API::get_owner_window(t.wd), t.origin);
 					}
 					break;
 				case event_code::mouse_move:
@@ -108,10 +106,8 @@ namespace nana
 						{
 							if (API::is_window_zoomed(t.wd, true) == false)
 							{
-								auto owner = API::get_owner_window(t.wd);
 								auto wdps = t.origin;
-								if (owner)
-									API::calc_window_point(owner, wdps);
+								API::calc_window_point(API::get_owner_window(t.wd), wdps);
 
 								switch (t.move_direction)
 								{
@@ -159,7 +155,7 @@ namespace nana
 				}
 			});
 
-			triggers_.push_back(tg);
+			triggers_.emplace_back(tg);
 		}
 	private:
 		static void _m_check_restrict_area(nana::point & pos, const nana::size & size, const nana::rectangle& restr_area)

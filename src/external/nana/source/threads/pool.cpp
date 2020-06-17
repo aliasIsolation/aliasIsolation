@@ -1,6 +1,6 @@
 /*
  *	A Thread Pool Implementation
- *	Copyright(C) 2003-2016 Jinhao(cnjinhao@hotmail.com)
+ *	Copyright(C) 2003-2018 Jinhao(cnjinhao@hotmail.com)
  *
  *	Distributed under the Boost Software License, Version 1.0.
  *	(See accompanying file LICENSE_1_0.txt or copy at
@@ -29,7 +29,7 @@
 #if defined(NANA_WINDOWS)
 	#include <windows.h>
 	#include <process.h>
-#elif defined(NANA_LINUX) || defined(NANA_MACOS)
+#elif defined(NANA_POSIX)
 	#include <pthread.h>
 #endif
 
@@ -94,7 +94,7 @@ namespace threads
 					pto->suspended = false;
 					::pthread_create(&(pto->handle), 0, reinterpret_cast<void*(*)(void*)>(&impl::_m_thr_starter), pto);
 #endif
-					container_.threads.push_back(pto);
+					container_.threads.emplace_back(pto);
 				}
 			}
 
@@ -141,6 +141,7 @@ namespace threads
 					::pthread_join(thr->handle, 0);
 					::pthread_detach(thr->handle);
 #endif
+					delete thr;
 				}
 
 				std::lock_guard<decltype(mutex_)> lock(mutex_);
@@ -168,7 +169,7 @@ namespace threads
 				else
 				{
 					std::lock_guard<decltype(mutex_)> lock(mutex_);
-					container_.tasks.push_back(taskptr);
+					container_.tasks.emplace_back(taskptr);
 				}
 			}
 
@@ -351,14 +352,33 @@ namespace threads
 			}container_;
 		};//end class impl
 
-		pool::pool()
-			: impl_(new impl(4))
+#ifndef STD_THREAD_NOT_SUPPORTED
+		pool::pool(unsigned thread_number)
+			: impl_(new impl(thread_number ? thread_number : std::thread::hardware_concurrency()))
 		{
 		}
-
-		pool::pool(std::size_t thread_number)
-			: impl_(new impl(thread_number))
+#else
+		pool::pool(unsigned thread_number)
+			: impl_(new impl(0))
 		{
+		}
+#endif
+
+		pool::pool(pool&& other)
+			: pool()
+		{
+			std::swap(impl_, other.impl_);
+		}
+
+		pool& pool::operator=(pool&& other)
+		{
+			if(this != &other)
+			{
+				delete impl_;
+				impl_ = other.impl_;
+				other.impl_ = new impl(4);
+			}
+			return *this;
 		}
 
 		pool::~pool()

@@ -1,7 +1,7 @@
 /**
 *	Definition of General Events
 *	Nana C++ Library(http://www.nanapro.org)
-*	Copyright(C) 2003-2016 Jinhao(cnjinhao@hotmail.com)
+*	Copyright(C) 2003-2019 Jinhao(cnjinhao@hotmail.com)
 *
 *	Distributed under the Boost Software License, Version 1.0.
 *	(See accompanying file LICENSE_1_0.txt or copy at
@@ -17,15 +17,20 @@
 #include <nana/gui/basis.hpp>
 #include "event_code.hpp"
 #include "internal_scope_guard.hpp"
+#include "../../filesystem/filesystem.hpp"
 #include <type_traits>
 #include <functional>
 #include <vector>
 
 namespace nana
 {
+	namespace API
+	{
+		bool is_window(window);			///< Determines whether a window is existing, equal to !empty_window.
+	}
+
 	namespace detail
 	{
-		bool check_window(window);
 		void events_operation_register(event_handle);
 
 		class event_interface
@@ -35,23 +40,22 @@ namespace nana
 			virtual void remove(event_handle) = 0;
 		};
 
-		class docker_interface
+		class event_docker_interface
 		{
 		public:
-			virtual ~docker_interface() = default;
+			virtual ~event_docker_interface() = default;
 			virtual event_interface*	get_event() const = 0;
 		};
 
 
 		struct docker_base
-			: public docker_interface
+			: public event_docker_interface
 		{
-			event_interface * event_ptr;
-			bool flag_deleted{ false };
+			event_interface * const event_ptr;
+			bool flag_deleted;
 			const bool unignorable;
 
 			docker_base(event_interface*, bool unignorable_flag);
-
 			detail::event_interface * get_event() const override;
 		};
 
@@ -78,11 +82,11 @@ namespace nana
 				event_base * const evt_;
 			};
 			
-			event_handle _m_emplace(detail::docker_interface*, bool in_front);
+			event_handle _m_emplace(detail::event_docker_interface*, bool in_front);
 		protected:
 			unsigned emitting_count_{ 0 };
 			bool deleted_flags_{ false };
-			std::vector<detail::docker_interface*> * dockers_{ nullptr };
+			std::vector<detail::event_docker_interface*> * dockers_{ nullptr };
 		};
 	}//end namespace detail
 
@@ -117,7 +121,7 @@ namespace nana
 	private:
 		struct docker
 			: public detail::docker_base
-		{	
+		{
 			/// the callback/response function taking the typed argument
 			std::function<void(arg_reference)> invoke;
 
@@ -133,11 +137,25 @@ namespace nana
 		/// Creates an event handler at the beginning of event chain
 		template<typename Function>
 		event_handle connect_front(Function && fn)
-		{	
+		{
+#ifdef __cpp_if_constexpr
+			if constexpr(std::is_invocable_v<Function, arg_reference>)
+			{
+				return _m_emplace(new docker{ this, fn, false }, true);
+			}
+			else if constexpr(std::is_invocable_v<Function>)
+			{
+				return _m_emplace(new docker{ this, [fn](arg_reference) {
+					fn();
+				}, false }, true);
+			}
+#else
 			using prototype = typename std::remove_reference<Function>::type;
 			return _m_emplace(new docker(this, factory<prototype, std::is_bind_expression<prototype>::value>::build(std::forward<Function>(fn)), false), true);
+#endif
 		}
 
+#ifndef __cpp_if_constexpr
 		/// It will not get called if stop_propagation() was called.
 		event_handle connect(void (*fn)(arg_reference))
 		{
@@ -145,13 +163,27 @@ namespace nana
 				fn(arg);
 			});
 		}
+#endif
 
 		/// It will not get called if stop_propagation() was called, because it is set at the end of the chain..
 		template<typename Function>
 		event_handle connect(Function && fn)
 		{
+#ifdef __cpp_if_constexpr
+			if constexpr(std::is_invocable_v<Function, arg_reference>)
+			{
+				return _m_emplace(new docker{ this, fn, false }, false);
+			}
+			else if constexpr(std::is_invocable_v<Function>)
+			{
+				return _m_emplace(new docker{ this, [fn](arg_reference) mutable{
+					fn();
+				}, false }, false);
+			}
+#else
 			using prototype = typename std::remove_reference<Function>::type;
 			return _m_emplace(new docker(this, factory<prototype, std::is_bind_expression<prototype>::value>::build(std::forward<Function>(fn)), false), false);
+#endif
 		}
 
 		/// It will not get called if stop_propagation() was called.
@@ -164,10 +196,22 @@ namespace nana
 		/// It will get called because it is unignorable.
         template<typename Function>
 		event_handle connect_unignorable(Function && fn, bool in_front = false)
-		{			
+		{
+#ifdef __cpp_if_constexpr
+			if constexpr(std::is_invocable_v<Function, arg_reference>)
+			{
+				return _m_emplace(new docker{ this, fn, true }, in_front);
+			}
+			else if constexpr(std::is_invocable_v<Function>)
+			{
+				return _m_emplace(new docker{ this, [fn](arg_reference) mutable{
+					fn();
+				}, true }, in_front);
+			}
+#else
 			using prototype = typename std::remove_reference<Function>::type;
-
 			return _m_emplace(new docker(this, factory<prototype, std::is_bind_expression<prototype>::value>::build(std::forward<Function>(fn)), true), in_front);
+#endif
 		}
 
 		void emit(arg_reference& arg, window window_handle)
@@ -180,36 +224,21 @@ namespace nana
 
 			//The dockers may resize when a new event handler is created by a calling handler.
 			//Traverses with position can avaid crash error which caused by a iterator which becomes invalid.
-
-			auto i = dockers_->data();
-			auto const end = i + dockers_->size();
-
-			for (; i != end; ++i)
+			for (std::size_t i = 0; i < dockers_->size(); ++i)
 			{
-				if (static_cast<docker*>(*i)->flag_deleted)
+				auto d = static_cast<docker*>(dockers_->data()[i]);
+				if (d->flag_deleted || (arg.propagation_stopped() && !d->unignorable))
 					continue;
 
-				static_cast<docker*>(*i)->invoke(arg);
+				d->invoke(arg);
 
-				if (window_handle && (!detail::check_window(window_handle)))
+				if (window_handle && (!::nana::API::is_window(window_handle)))
 					break;
-
-				if (arg.propagation_stopped())
-				{
-					for (++i; i != end; ++i)
-					{
-						if (!static_cast<docker*>(*i)->unignorable || static_cast<docker*>(*i)->flag_deleted)
-							continue;
-
-						static_cast<docker*>(*i)->invoke(arg);
-						if (window_handle && (!detail::check_window(window_handle)))
-							break;
-					}
-					break;
-				}
 			}
 		}
 	private:
+
+#ifndef __cpp_if_constexpr
 		template<typename Fn, bool IsBind>
 		struct factory
 		{
@@ -255,34 +284,16 @@ namespace nana
 				};
 			}
 
-			static std::function<void(arg_reference)> build_second(fn_type&& fn, void(fn_type::*)(arg_reference))
+			template<typename Tfn, typename Ret>
+			static std::function<void(arg_reference)> build_second(Tfn&& fn, Ret(fn_type::*)(arg_reference))
 			{
-				return std::move(fn);
+				return std::forward<Tfn>(fn);
 			}
 
-			static std::function<void(arg_reference)> build_second(fn_type&& fn, void(fn_type::*)(arg_reference) const)
+			template<typename Tfn, typename Ret>
+			static std::function<void(arg_reference)> build_second(Tfn&& fn, Ret(fn_type::*)(arg_reference)const)
 			{
-				return std::move(fn);
-			}
-
-			static std::function<void(arg_reference)> build_second(fn_type& fn, void(fn_type::*)(arg_reference))
-			{
-				return fn;
-			}
-
-			static std::function<void(arg_reference)> build_second(fn_type& fn, void(fn_type::*)(arg_reference) const)
-			{
-				return fn;
-			}
-		
-			static std::function<void(arg_reference)> build_second(const fn_type& fn, void(fn_type::*)(arg_reference))
-			{
-				return fn;
-			}
-
-			static std::function<void(arg_reference)> build_second(const fn_type& fn, void(fn_type::*)(arg_reference) const)
-			{
-				return fn;
+				return std::forward<Tfn>(fn);
 			}
 
 			template<typename Tfn, typename Ret, typename Arg2>
@@ -378,13 +389,14 @@ namespace nana
 			typedef typename std::remove_reference<arg_reference>::type arg_type;
 			static_assert(std::is_convertible<arg_type, Arg2>::value, "The parameter type is not allowed, please check the function parameter type where you connected the event function.");
 
-			static std::function<void(arg_reference)> build(Ret(*fn)(Arg))
+			static std::function<void(arg_reference)> build(Ret(*fn)(Arg2))
 			{
 				return[fn](arg_reference arg){
 					fn(arg);
 				};
 			}
 		};
+#endif
 	};
  
 	struct arg_mouse
@@ -427,9 +439,9 @@ namespace nana
 
 	struct arg_dropfiles : public event_arg  
 	{
-		::nana::window	window_handle;	    ///<  A handle to the event window
-		::nana::point	pos;	            ///<  cursor position in the event window
-		std::vector<std::string>	files;	///<  external filenames
+		::nana::window	window_handle;				///<  A handle to the event window
+		::nana::point	pos;						///<  cursor position in the event window
+		std::vector<std::filesystem::path>	files;	///<  external filenames
 	};
 
 	struct arg_expose : public event_arg
@@ -454,14 +466,28 @@ namespace nana
 		reason	focus_reason;					///< determines how the widget receives keyboard focus, it is ignored when 'getting' is equal to false
 	};
 
+	struct arg_ime: public event_arg
+	{
+		enum class reason
+		{
+			composition,
+			result
+		};
+
+		::nana::window window_handle;	///< A handle to the event window
+		reason ime_reason;
+		std::wstring composition_string;
+	};
+
 	struct arg_keyboard : public event_arg
 	{
 		event_code evt_code;	    ///< it is event_code::key_press in current event
 		::nana::window window_handle;	///< A handle to the event window
 		mutable wchar_t key;	///< the key corresponding to the key pressed
 		mutable bool ignore;	    ///< this member is only available for key_char event, set 'true' to ignore the input.
-		bool ctrl;	                ///< keyboard Ctrl is pressed?
-		bool shift;	                ///< keyboard Shift is pressed
+		bool alt;					///< it is set to indicate the modifier key Alt just prior to the event.
+		bool ctrl;	                ///< it is set to indicate the modifier key Ctrl just prior to the event.
+		bool shift;	                ///< it is set to indicate the modifier key Shift just prior to the event.
 	};
 
 	struct arg_move : public event_arg

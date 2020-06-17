@@ -1,16 +1,16 @@
-/*
+/**
  *	A Categorize Implementation
  *	Nana C++ Library(http://www.nanapro.org)
- *	Copyright(C) 2003-2016 Jinhao(cnjinhao@hotmail.com)
+ *	Copyright(C) 2003-2019 Jinhao(cnjinhao@hotmail.com)
  *
  *	Distributed under the Boost Software License, Version 1.0.
  *	(See accompanying file LICENSE_1_0.txt or copy at
  *	http://www.boost.org/LICENSE_1_0.txt)
  *
- *	@file: nana/gui/widgets/categorize.cpp
+ *	@file nana/gui/widgets/categorize.cpp
  */
 
-#include <nana/gui/wvl.hpp>
+#include <nana/gui/compact.hpp>
 #include <nana/gui/widgets/categorize.hpp>
 #include <nana/gui/widgets/float_listbox.hpp>
 #include <nana/gui/element.hpp>
@@ -78,7 +78,7 @@ namespace nana
 
 					if(ue.what == ue.none || (API::window_enabled(wd) == false))
 					{	//the mouse is out of the widget.
-						style_.bgcolor = style_.bgcolor.blend(static_cast<color_rgb>(0xa0c9f5), 0.9);
+						style_.bgcolor = style_.bgcolor.blend(static_cast<color_rgb>(0xa0c9f5), 0.1);
 					}
 					graph.rectangle(r, true, style_.bgcolor);
 				}
@@ -343,7 +343,7 @@ namespace nana
 				{
 					if(tree_.get_root()->child)
 					{
-						tree_.clear();
+						tree_.clear(tree_.get_root());
 						return true;
 					}
 					return false;
@@ -446,7 +446,7 @@ namespace nana
 						{
 							r.width = i->value.second.pixels;
 							//If the item is over the right border of widget, the item would be painted at
-							//the begining of the next line.
+							//the beginning of the next line.
 							if(r.right() > xend)
 							{
 								r.x = xbase;
@@ -573,7 +573,7 @@ namespace nana
 
 					style_.listbox->events().destroy.connect_unignorable([this](const arg_destroy&)
 					{
-						//Close list when listbox is destoryed
+						//Close list when listbox is destroyed
 						style_.mode = mode::normal;
 						style_.state = mouse_action::normal;
 
@@ -646,7 +646,7 @@ namespace nana
 							}
 							else
 							{
-								//Too many items, so some of items cann't be displayed
+								//Too many items, so some of items can't be displayed
 								r.x += 16;
 								r.width -= 16;
 								return r;
@@ -918,5 +918,5 @@ namespace nana
 				}
 			//end class trigger
 		}//end namespace categorize
-	}//end namespace draerbase
+	}//end namespace drawerbase
 }//end namespace nana

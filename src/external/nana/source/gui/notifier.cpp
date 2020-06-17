@@ -1,7 +1,7 @@
 /*
  *	Implementation of Notifier
  *	Nana C++ Library(http://www.nanapro.org)
- *	Copyright(C) 2003-2016 Jinhao(cnjinhao@hotmail.com)
+ *	Copyright(C) 2003-2019 Jinhao(cnjinhao@hotmail.com)
  *
  *	Distributed under the Boost Software License, Version 1.0.
  *	(See accompanying file LICENSE_1_0.txt or copy at
@@ -26,9 +26,9 @@
 #include <mutex>
 #endif
 
-#include <nana/detail/platform_spec_selector.hpp>
+#include "../detail/platform_spec_selector.hpp"
 
-#if defined(NANA_LINUX) || defined(NANA_MACOS)
+#if defined(NANA_POSIX)
 #include <nana/system/platform.hpp>
 #include <iostream>
 #endif
@@ -201,7 +201,7 @@ namespace nana
 #if defined(NANA_WINDOWS)
 	void notifications_window_proc(HWND wd, WPARAM wparam, LPARAM lparam)
 	{
-		arg_notifier arg;
+		arg_notifier arg = {};
 		switch (lparam)
 		{
 		case WM_LBUTTONDBLCLK:
@@ -265,6 +265,9 @@ namespace nana
 
 			auto ico = impl_->icons[impl_->play_index++];
 			impl_->set_icon(ico);
+#else
+			//eliminates warnings in clang
+			static_cast<void>(this);
 #endif
 		});
 
@@ -321,6 +324,7 @@ namespace nana
 
 	void notifier::icon(const std::string& icon_file)
 	{
+#if defined(NANA_WINDOWS)
 		paint::image image_ico{ icon_file };
 		auto icon_handle = paint::image_accessor::icon(image_ico);
 		if (icon_handle)
@@ -330,23 +334,31 @@ namespace nana
 			impl_->set_icon(image_ico);
 			impl_->icon = image_ico;
 		}
+#else
+		static_cast<void>(icon_file);	//eliminate unused parameter warning
+#endif
 	}
 
 	void notifier::insert_icon(const std::string& icon_file)
 	{
+#if defined(NANA_WINDOWS)
 		paint::image image_ico{ icon_file };
 		auto icon_handle = paint::image_accessor::icon(image_ico);
 		if (icon_handle)
 			impl_->icons.emplace_back(static_cast<paint::image&&>(image_ico));
+#else
+		static_cast<void>(icon_file);	//eliminate unused parameter warning
+#endif
 	}
 
-	void notifier::period(unsigned ms)
+	void notifier::period(std::chrono::milliseconds ms)
 	{
 #if defined(NANA_WINDOWS)
-		if (ms && impl_->icons.size())
+		if (ms.count() && impl_->icons.size())
 		{
-			ms /= static_cast<unsigned>(impl_->icons.size());
-			impl_->ani_timer.interval(ms < 16 ? 16 : ms);
+			auto frame_ms = (std::max)(ms.count() / static_cast<long long>(impl_->icons.size()), static_cast<long long>(16));
+
+			impl_->ani_timer.interval(std::chrono::milliseconds{frame_ms});
 			impl_->ani_timer.start();
 		}
 		else

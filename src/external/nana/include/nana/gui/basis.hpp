@@ -4,7 +4,7 @@
  *
  *	Basis Implementation
  *	Nana C++ Library(http://www.nanapro.org)
- *	Copyright(C) 2003-2016 Jinhao(cnjinhao@hotmail.com)
+ *	Copyright(C) 2003-2019 Jinhao(cnjinhao@hotmail.com)
  *
  *	Distributed under the Boost Software License, Version 1.0.
  *	(See accompanying file LICENSE_1_0.txt or copy at
@@ -24,11 +24,21 @@ namespace nana
 {
 	namespace detail
 	{
-		struct native_window_handle_impl{};
-		struct window_handle_impl{};
-		struct event_handle_impl{};
-		struct native_drawable_impl{};
+		struct basic_window;
+
+		struct native_window_handle_impl;
+		struct native_drawable_impl;
+		struct event_handle_impl;
 	}
+
+	struct accel_key
+	{
+		char key;
+		bool case_sensitive{ false };
+		bool alt{ false };
+		bool ctrl{ false };
+		bool shift{ false };
+	};
 
 	enum class checkstate
 	{
@@ -42,11 +52,25 @@ namespace nana
 		top_left, top_right, bottom_left, bottom_right
 	};
 
+	enum class window_relationship
+	{
+		owner,		///< Owner window.
+		parent,		///< Parent window.
+		either_po 	///< One between owner and parent.
+	};
+
 	enum class bground_mode
 	{
 		none,
 		basic,
 		blend
+	};
+
+	enum class dragdrop_status
+	{
+		not_ready,
+		ready,
+		in_progress
 	};
 
 	namespace category
@@ -57,23 +81,18 @@ namespace nana
 			widget = 0x1,
 			lite_widget = 0x3,
 			root = 0x5
-#ifndef WIDGET_FRAME_DEPRECATED
-			,frame = 0x9
-#endif
 		};
 		//wait for constexpr
 		struct widget_tag{ static const flags value = flags::widget; };
 		struct lite_widget_tag : public widget_tag{ static const flags value = flags::lite_widget;  };
 		struct root_tag : public widget_tag{ static const flags value = flags::root;  };
-#ifndef WIDGET_FRAME_DEPRECATED
-		struct frame_tag : public widget_tag{ static const flags value = flags::frame;  };
-#endif
 	}// end namespace category
 
-	using native_window_type = detail::native_window_handle_impl*;
-	using window = detail::window_handle_impl*; ///< \see [What is window class ](https://sourceforge.net/p/nanapro/discussion/general/thread/bd0fabfb/) 
-	using event_handle = detail::event_handle_impl*;
-	using native_drawable_type = detail::native_drawable_impl*;
+	using window = detail::basic_window*;							///< The window handle type representing nana window objects
+	using native_window_type = detail::native_window_handle_impl*;	///< The native window handle type representing system native windows. E.g, HWND in windows, Window in X11
+
+	using event_handle = detail::event_handle_impl*;				///< The event handle type representing nana window events
+	using native_drawable_type = detail::native_drawable_impl*;		///< The drawable handle type representing system native drawable objects.	E.g. HDC in windows, Drawable in X11
 
 
 	struct keyboard
@@ -91,6 +110,8 @@ namespace nana
 			substitute = 0x1A,	//Ctrl+Z
 			escape = 0x1B,
 			space = 0x20,	//Space
+			del = 0x7F,		//Delete
+			os_del = del,	//Deprecated
 
 			//The following names are intuitive name of ASCII control codes
 			select_all = start_of_headline,
@@ -106,8 +127,8 @@ namespace nana
 			os_ctrl = 0x11,
 			os_pageup = 0x21, os_pagedown,
 			os_arrow_left = 0x25, os_arrow_up, os_arrow_right, os_arrow_down,
-			os_insert = 0x2D, os_del ,
-            os_end = 0x23   , os_home //Pos 1
+			os_insert = 0x2D,
+            os_end = 0x23, os_home //Pos 1
 		};
 	};
 
@@ -164,7 +185,7 @@ namespace nana
  
 A window has an appearance. This appearance can be specified when a window is being created. 
 To determine the appearance of a window there is a structure named nana::appearance with 
-a bool member for each feature with can be included or excluded in the "apereance" of the windows form. 
+a bool member for each feature with can be included or excluded in the "appearance" of the windows form. 
 But in practical development is hard to describe the style of the appearance using the struct nana::appearance.
 If a form would to be defined without min/max button and sizable border, then
 
@@ -263,7 +284,7 @@ that return a corresponding nana::appearance with predefined values.
 									set_type::template count<sizable>::value);
 			}
 		};
-	};//end namespace apper
+	};//end namespace appear
 
 	/// Interface for caret operations
 	class caret_interface
@@ -271,6 +292,7 @@ that return a corresponding nana::appearance with predefined values.
 	public:
 		virtual ~caret_interface() = default;
 
+		virtual bool activated() const = 0;
 		virtual void disable_throw() noexcept = 0;
 
 		virtual void effective_range(const rectangle& range) = 0;
@@ -284,6 +306,19 @@ that return a corresponding nana::appearance with predefined values.
 		virtual void visible(bool visibility) = 0;
 		virtual bool visible() const = 0;
 	};//end class caret_interface
+
+	/// Interface for scroll operations
+	/**
+	 * This interface provides methods to operate the scrollbars that are contained
+	 * in a specific widget, such as listbox and treebox
+	 */
+	class scroll_operation_interface
+	{
+	public:
+		virtual ~scroll_operation_interface() = default;
+
+		virtual bool visible(bool vert) const = 0;
+	};
 
 	namespace parameters
 	{

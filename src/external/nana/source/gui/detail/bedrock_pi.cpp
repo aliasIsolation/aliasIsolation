@@ -1,7 +1,7 @@
 /*
 *	A Bedrock Platform-Independent Implementation
 *	Nana C++ Library(http://www.nanapro.org)
-*	Copyright(C) 2003-2016 Jinhao(cnjinhao@hotmail.com)
+*	Copyright(C) 2003-2019 Jinhao(cnjinhao@hotmail.com)
 *
 *	Distributed under the Boost Software License, Version 1.0.
 *	(See accompanying file LICENSE_1_0.txt or copy at
@@ -10,21 +10,24 @@
 *	@file: nana/gui/detail/bedrock_pi.cpp
 */
 
-#include <nana/detail/platform_spec_selector.hpp>
-#include <nana/gui/detail/bedrock_pi_data.hpp>
+#include "../../detail/platform_spec_selector.hpp"
+#include "basic_window.hpp"
+#include "bedrock_types.hpp"
+#include <nana/gui/compact.hpp>
+#include <nana/gui/widgets/widget.hpp>
 #include <nana/gui/detail/event_code.hpp>
 #include <nana/system/platform.hpp>
-#include <sstream>
 #include <nana/system/timepiece.hpp>
-#include <nana/gui/wvl.hpp>
-#include <nana/gui/detail/inner_fwd_implement.hpp>
 #include <nana/gui/detail/native_window_interface.hpp>
 #include <nana/gui/layout_utility.hpp>
 #include <nana/gui/detail/element_store.hpp>
+
+#include <sstream>
 #include <algorithm>
 
 namespace nana
 {
+
 	//class internal_scope_guard
 		internal_scope_guard::internal_scope_guard()
 		{
@@ -36,7 +39,7 @@ namespace nana
 			detail::bedrock::instance().wd_manager().internal_lock().unlock();
 		}
 	//end class internal_scope_guard
-	
+
 	//class internal_revert_guard
 		internal_revert_guard::internal_revert_guard()
 		{
@@ -54,7 +57,7 @@ namespace nana
 	{
 		stop_propagation_ = true;
 	}
-	
+
 	bool event_arg::propagation_stopped() const
 	{
 		return stop_propagation_;
@@ -63,11 +66,6 @@ namespace nana
 
 	namespace detail
 	{
-		bool check_window(window wd)
-		{
-			return bedrock::instance().wd_manager().available(reinterpret_cast<window_manager::core_window_t*>(wd));
-		}
-
 		void events_operation_register(event_handle evt)
 		{
 			bedrock::instance().evt_operation().register_evt(evt);
@@ -76,7 +74,7 @@ namespace nana
 		class bedrock::flag_guard
 		{
 		public:
-			flag_guard(bedrock* brock, core_window_t * wd)
+			flag_guard(bedrock* brock, basic_window * wd)
 				: brock_{ brock }, wd_(wd)
 			{
 				wd_->flags.refreshing = true;
@@ -89,9 +87,32 @@ namespace nana
 			}
 		private:
 			bedrock			*const brock_;
-			core_window_t	*const wd_;
-
+			basic_window	*const wd_;
 		};
+
+		//class root_guard
+		bedrock::root_guard::root_guard(bedrock& brock, basic_window* root_wd):
+			brock_(brock),
+			root_wd_(root_wd)
+		{
+			root_wd_->other.attribute.root->lazy_update = true;
+		}
+
+		bedrock::root_guard::~root_guard()
+		{
+			if (!brock_.wd_manager().available(root_wd_))
+				return;
+
+			root_wd_->other.attribute.root->lazy_update = false;
+			root_wd_->other.attribute.root->update_requesters.clear();
+		}
+		//end class root_guard
+
+		basic_window* bedrock::focus()
+		{
+			auto wd = wd_manager().root(native_interface::get_focus_window());
+			return (wd ? wd->other.attribute.root->focus : nullptr);
+		}
 
 		events_operation& bedrock::evt_operation()
 		{
@@ -103,14 +124,14 @@ namespace nana
 			return pi_data_->wd_manager;
 		}
 
-		void bedrock::manage_form_loader(core_window_t* wd, bool insert_or_remove)
+		void bedrock::manage_form_loader(basic_window* wd, bool insert_or_remove)
 		{
 			if (insert_or_remove)
 			{
 				pi_data_->auto_form_set.insert(wd);
 				return;
 			}
-			
+
 			if (pi_data_->auto_form_set.erase(wd))
 			{
 				auto p = wd->widget_notifier->widget_ptr();
@@ -118,7 +139,28 @@ namespace nana
 			}
 		}
 
-		void bedrock::event_expose(core_window_t * wd, bool exposed)
+		void bedrock::close_thread_window(thread_t thread_id)
+		{
+			std::vector<basic_window*> v;
+			wd_manager().all_handles(v);
+
+			std::vector<native_window_type> roots;
+			native_window_type root = nullptr;
+			for (auto wd : v)
+			{
+				if (((0 == thread_id) || (wd->thread_id == thread_id)) && (wd->root != root))
+				{
+					root = wd->root;
+					if (roots.end() == std::find(roots.begin(), roots.end(), root))
+						roots.emplace_back(root);
+				}
+			}
+
+			for (auto i : roots)
+				native_interface::close_window(i);
+		}
+
+		void bedrock::event_expose(basic_window * wd, bool exposed)
 		{
 			if (nullptr == wd) return;
 
@@ -126,10 +168,11 @@ namespace nana
 
 			arg_expose arg;
 			arg.exposed = exposed;
-			arg.window_handle = reinterpret_cast<window>(wd);
+			arg.window_handle = wd;
 			if (emit(event_code::expose, wd, arg, false, get_thread_context()))
 			{
-				const core_window_t * caret_wd = (wd->annex.caret_ptr ? wd : wd->child_caret());
+				//Get the window who has the activated caret
+				auto const caret_wd = ((wd->annex.caret_ptr && wd->annex.caret_ptr->activated()) ? wd : wd->child_caret());
 				if (caret_wd)
 				{
 					if (exposed)
@@ -141,17 +184,10 @@ namespace nana
 						caret_wd->annex.caret_ptr->visible(false);
 				}
 
-				if (!exposed)
+				if ((!exposed) && (category::flags::root != wd->other.category))
 				{
-					if (category::flags::root != wd->other.category)
-					{
-						//find an ancestor until it is not a lite_widget
-						wd = wd->seek_non_lite_widget_ancestor();
-					}
-#ifndef WIDGET_FRAME_DEPRECATED
-					else if (category::flags::frame == wd->other.category)
-						wd = wd_manager().find_window(wd->root, wd->pos_root.x, wd->pos_root.y);
-#endif
+					//find an ancestor until it is not a lite_widget
+					wd = wd->seek_non_lite_widget_ancestor();
 				}
 
 				wd_manager().refresh_tree(wd);
@@ -159,19 +195,19 @@ namespace nana
 			}
 		}
 
-		void bedrock::event_move(core_window_t* wd, int x, int y)
+		void bedrock::event_move(basic_window* wd, int x, int y)
 		{
 			if (wd)
 			{
 				arg_move arg;
-				arg.window_handle = reinterpret_cast<window>(wd);
+				arg.window_handle = wd;
 				arg.x = x;
 				arg.y = y;
 				emit(event_code::move, wd, arg, true, get_thread_context());
 			}
 		}
 
-		bool bedrock::event_msleave(core_window_t* hovered)
+		bool bedrock::event_msleave(basic_window* hovered)
 		{
 			if (wd_manager().available(hovered) && hovered->flags.enabled)
 			{
@@ -179,7 +215,7 @@ namespace nana
 
 				arg_mouse arg;
 				arg.evt_code = event_code::mouse_leave;
-				arg.window_handle = reinterpret_cast<window>(hovered);
+				arg.window_handle = hovered;
 				arg.pos.x = arg.pos.y = 0;
 				arg.left_button = arg.right_button = arg.mid_button = false;
 				arg.ctrl = arg.shift = false;
@@ -190,12 +226,12 @@ namespace nana
 		}
 
 		//The wd must be a root window
-		void bedrock::event_focus_changed(core_window_t* root_wd, native_window_type receiver, bool getting)
+		void bedrock::event_focus_changed(basic_window* root_wd, native_window_type receiver, bool getting)
 		{
 			auto focused = root_wd->other.attribute.root->focus;
 
 			arg_focus arg;
-			arg.window_handle = reinterpret_cast<window>(focused);
+			arg.window_handle = focused;
 			arg.getting = getting;
 			arg.receiver = receiver;
 
@@ -221,7 +257,7 @@ namespace nana
 			}
 		}
 
-		void bedrock::update_cursor(core_window_t * wd)
+		void bedrock::update_cursor(basic_window * wd)
 		{
 			internal_scope_guard isg;
 			if (wd_manager().available(wd))
@@ -236,14 +272,14 @@ namespace nana
 					return;
 
 				native_interface::calc_window_point(native_handle, pos);
-				if (wd != wd_manager().find_window(native_handle, pos.x, pos.y))
+				if (wd != wd_manager().find_window(native_handle, pos))
 					return;
 
 				set_cursor(wd, wd->predef_cursor, thrd);
 			}
 		}
 
-		void bedrock::set_menubar_taken(core_window_t* wd)
+		void bedrock::set_menubar_taken(basic_window* wd)
 		{
 			auto pre = pi_data_->menu.taken_window;
 			pi_data_->menu.taken_window = wd;
@@ -285,11 +321,11 @@ namespace nana
 		{
 			if (pi_data_->menu.window && (pi_data_->menu.window != wd))
 			{
-				wd = native_interface::get_owner_window(wd);
+				wd = native_interface::get_window(wd, window_relationship::owner);
 				while (wd)
 				{
 					if (wd != pi_data_->menu.window)
-						wd = native_interface::get_owner_window(wd);
+						wd = native_interface::get_window(wd, window_relationship::owner);
 					else
 						return false;
 				}
@@ -298,7 +334,7 @@ namespace nana
 			}
 			return false;
 		}
-		
+
 		void bedrock::set_menu(native_window_type menu_wd, bool has_keyboard)
 		{
 			if(menu_wd && pi_data_->menu.window != menu_wd)
@@ -306,7 +342,7 @@ namespace nana
 				erase_menu(true);
 
 				pi_data_->menu.window = menu_wd;
-				pi_data_->menu.owner = native_interface::get_owner_window(menu_wd);
+				pi_data_->menu.owner = native_interface::get_window(menu_wd, window_relationship::owner);
 				pi_data_->menu.has_keyboard = has_keyboard;
 			}
 		}
@@ -357,11 +393,13 @@ namespace nana
 			return pi_data_->scheme;
 		}
 
-		void bedrock::_m_emit_core(event_code evt_code, core_window_t* wd, bool draw_only, const ::nana::event_arg& event_arg)
+		void bedrock::_m_emit_core(event_code evt_code, basic_window* wd, bool draw_only, const ::nana::event_arg& event_arg, const bool bForce__EmitInternal)
 		{
 			auto retain = wd->annex.events_ptr;
 			auto evts_ptr = retain.get();
 
+			// if 'bForce__EmitInternal', omit user defined events
+			const bool bProcess__External_event = !draw_only && !bForce__EmitInternal;
 			switch (evt_code)
 			{
 			case event_code::click:
@@ -372,10 +410,10 @@ namespace nana
 						{
 							//enable refreshing flag, this is a RAII class for exception-safe
 							flag_guard fguard(this, wd);
-							wd->drawer.click(*arg);
+							wd->drawer.click(*arg, bForce__EmitInternal);
 						}
-						if (!draw_only)
-							evts_ptr->click.emit(*arg, reinterpret_cast<window>(wd));
+						if (bProcess__External_event)
+							evts_ptr->click.emit(*arg, wd);
 					}
 				}
 				break;
@@ -390,7 +428,7 @@ namespace nana
 				if (nullptr == arg)
 					return;
 
-				void(::nana::detail::drawer::*drawer_event_fn)(const arg_mouse&);
+				void(::nana::detail::drawer::*drawer_event_fn)(const arg_mouse&, const bool);
 				::nana::basic_event<arg_mouse>* evt_addr;
 
 				switch (evt_code)
@@ -426,11 +464,11 @@ namespace nana
 				{
 					//enable refreshing flag, this is a RAII class for exception-safe
 					flag_guard fguard(this, wd);
-					(wd->drawer.*drawer_event_fn)(*arg);
+					(wd->drawer.*drawer_event_fn)(*arg, bForce__EmitInternal);
 				}
-				
-				if (!draw_only)
-					evt_addr->emit(*arg, reinterpret_cast<window>(wd));
+
+				if (bProcess__External_event)
+					evt_addr->emit(*arg, wd);
 				break;
 			}
 			case event_code::mouse_wheel:
@@ -441,11 +479,11 @@ namespace nana
 					{
 						//enable refreshing flag, this is a RAII class for exception-safe
 						flag_guard fguard(this, wd);
-						wd->drawer.mouse_wheel(*arg);
+						wd->drawer.mouse_wheel(*arg, bForce__EmitInternal);
 					}
 
-					if (!draw_only)
-						evts_ptr->mouse_wheel.emit(*arg, reinterpret_cast<window>(wd));
+					if (bProcess__External_event)
+						evts_ptr->mouse_wheel.emit(*arg, wd);
 				}
 				break;
 			}
@@ -458,7 +496,7 @@ namespace nana
 				if (nullptr == arg)
 					return;
 
-				void(::nana::detail::drawer::*drawer_event_fn)(const arg_keyboard&);
+				void(::nana::detail::drawer::*drawer_event_fn)(const arg_keyboard&, const bool);
 				::nana::basic_event<arg_keyboard>* evt_addr;
 
 				switch (evt_code)
@@ -485,19 +523,19 @@ namespace nana
 				{
 					//enable refreshing flag, this is a RAII class for exception-safe
 					flag_guard fguard(this, wd);
-					(wd->drawer.*drawer_event_fn)(*arg);
+					(wd->drawer.*drawer_event_fn)(*arg, bForce__EmitInternal);
 				}
 
-				if (!draw_only)
-					evt_addr->emit(*arg, reinterpret_cast<window>(wd));
+				if (bProcess__External_event)
+					evt_addr->emit(*arg, wd);
 				break;
 			}
 			case event_code::expose:
-				if (!draw_only)
+				if (bProcess__External_event)
 				{
 					auto arg = dynamic_cast<const arg_expose*>(&event_arg);
 					if (arg)
-						evts_ptr->expose.emit(*arg, reinterpret_cast<window>(wd));
+						evts_ptr->expose.emit(*arg, wd);
 				}
 				break;
 			case event_code::focus:
@@ -508,10 +546,10 @@ namespace nana
 					{
 						//enable refreshing flag, this is a RAII class for exception-safe
 						flag_guard fguard(this, wd);
-						wd->drawer.focus(*arg);
+						wd->drawer.focus(*arg, bForce__EmitInternal);
 					}
-					if (!draw_only)
-						evts_ptr->focus.emit(*arg, reinterpret_cast<window>(wd));
+					if (bProcess__External_event)
+						evts_ptr->focus.emit(*arg, wd);
 				}
 				break;
 			}
@@ -523,10 +561,10 @@ namespace nana
 					{
 						//enable refreshing flag, this is a RAII class for exception-safe
 						flag_guard fguard(this, wd);
-						wd->drawer.move(*arg);
+						wd->drawer.move(*arg, bForce__EmitInternal);
 					}
-					if (!draw_only)
-						evts_ptr->move.emit(*arg, reinterpret_cast<window>(wd));
+					if (bProcess__External_event)
+						evts_ptr->move.emit(*arg, wd);
 				}
 				break;
 			}
@@ -538,10 +576,10 @@ namespace nana
 					{
 						//enable refreshing flag, this is a RAII class for exception-safe
 						flag_guard fguard(this, wd);
-						wd->drawer.resizing(*arg);
+						wd->drawer.resizing(*arg, bForce__EmitInternal);
 					}
-					if (!draw_only)
-						evts_ptr->resizing.emit(*arg, reinterpret_cast<window>(wd));
+					if (bProcess__External_event)
+						evts_ptr->resizing.emit(*arg, wd);
 				}
 				break;
 			}
@@ -553,31 +591,31 @@ namespace nana
 					{
 						//enable refreshing flag, this is a RAII class for exception-safe
 						flag_guard fguard(this, wd);
-						wd->drawer.resized(*arg);
+						wd->drawer.resized(*arg, bForce__EmitInternal);
 					}
-					if (!draw_only)
-						evts_ptr->resized.emit(*arg, reinterpret_cast<window>(wd));
+					if (bProcess__External_event)
+						evts_ptr->resized.emit(*arg, wd);
 				}
 				break;
 			}
 			case event_code::unload:
-				if (!draw_only)
+				if (bProcess__External_event)
 				{
 					auto arg = dynamic_cast<const arg_unload*>(&event_arg);
 					if (arg && (wd->other.category == category::flags::root))
 					{
 						auto evt_root = dynamic_cast<events_root_extension*>(evts_ptr);
 						if (evt_root)
-							evt_root->unload.emit(*arg, reinterpret_cast<window>(wd));
+							evt_root->unload.emit(*arg, wd);
 					}
 				}
 				break;
 			case event_code::destroy:
-				if (!draw_only)
+				if (bProcess__External_event)
 				{
 					auto arg = dynamic_cast<const arg_destroy*>(&event_arg);
 					if (arg)
-						evts_ptr->destroy.emit(*arg, reinterpret_cast<window>(wd));
+						evts_ptr->destroy.emit(*arg, wd);
 				}
 				break;
 			default:
@@ -585,27 +623,83 @@ namespace nana
 			}
 		}
 
-		void bedrock::_m_except_handler()
+		void bedrock::thread_context_destroy(basic_window * wd)
 		{
-			std::vector<core_window_t*> v;
-			wd_manager().all_handles(v);
-			if (v.size())
-			{
-				std::vector<native_window_type> roots;
-				native_window_type root = nullptr;
-				unsigned tid = nana::system::this_thread_id();
-				for (auto wd : v)
-				{
-					if ((wd->thread_id == tid) && (wd->root != root))
-					{
-						root = wd->root;
-						if (roots.cend() == std::find(roots.cbegin(), roots.cend(), root))
-							roots.push_back(root);
-					}
-				}
+			auto ctx = get_thread_context(0);
+			if(ctx && ctx->event_window == wd)
+				ctx->event_window = nullptr;
+		}
 
-				for (auto i : roots)
-					native_interface::close_window(i);
+		void bedrock::thread_context_lazy_refresh()
+		{
+			auto ctx = get_thread_context(0);
+			if(ctx && ctx->event_window)
+				ctx->event_window->other.upd_state = basic_window::update_state::refreshed;
+		}
+
+		bool bedrock::emit(event_code evt_code, basic_window* wd, const ::nana::event_arg& arg, bool ask_update, thread_context* thrd, const bool bForce__EmitInternal)
+		{
+			if(wd_manager().available(wd) == false)
+				return false;
+
+			basic_window * prev_wd = nullptr;
+			if(thrd)
+			{
+				prev_wd = thrd->event_window;
+				thrd->event_window = wd;
+				_m_event_filter(evt_code, wd, thrd);
+			}
+
+			using update_state = basic_window::update_state;
+
+			if (update_state::none == wd->other.upd_state)
+				wd->other.upd_state = update_state::lazy;
+
+			_m_emit_core(evt_code, wd, false, arg, bForce__EmitInternal);
+
+			bool good_wd = false;
+			if(wd_manager().available(wd))
+			{
+				//A child of wd may not be drawn if it was out of wd's range before wd resized,
+				//so refresh all children of wd when a resized occurs.
+				if(ask_update || (event_code::resized == evt_code) || (update_state::refreshed == wd->other.upd_state))
+				{
+					wd_manager().do_lazy_refresh(wd, false, (event_code::resized == evt_code));
+				}
+				else
+					wd->other.upd_state = update_state::none;
+
+				good_wd = true;
+			}
+
+
+			if(thrd) thrd->event_window = prev_wd;
+			return good_wd;
+		}
+
+		void bedrock::_m_event_filter(event_code event_id, basic_window * wd, thread_context * thrd)
+		{
+			auto not_state_cur = (wd->root_widget->other.attribute.root->state_cursor == nana::cursor::arrow);
+
+			switch(event_id)
+			{
+			case event_code::mouse_enter:
+				if (not_state_cur)
+					set_cursor(wd, wd->predef_cursor, thrd);
+				break;
+			case event_code::mouse_leave:
+				if (not_state_cur && (wd->predef_cursor != cursor::arrow))
+					set_cursor(wd, nana::cursor::arrow, thrd);
+				break;
+			case event_code::destroy:
+				if (wd->root_widget->other.attribute.root->state_cursor_window == wd)
+					undefine_state_cursor(wd, thrd);
+
+				if(wd == thrd->cursor.window)
+					set_cursor(wd, cursor::arrow, thrd);
+				break;
+			default:
+				break;
 			}
 		}
 	}//end namespace detail

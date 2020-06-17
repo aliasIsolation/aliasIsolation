@@ -6,7 +6,7 @@
 #include <vector>
 #include <algorithm>
 #include <filesystem>
-namespace fs = std::experimental::filesystem;
+namespace fs = std::filesystem;
 
 #include "MinHook.h"
 

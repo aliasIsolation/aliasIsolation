@@ -1,7 +1,7 @@
 /*
  *	A CheckBox Implementation
  *	Nana C++ Library(http://www.nanapro.org)
- *	Copyright(C) 2003-2016 Jinhao(cnjinhao@hotmail.com)
+ *	Copyright(C) 2003-2019 Jinhao(cnjinhao@hotmail.com)
  *
  *	Distributed under the Boost Software License, Version 1.0.
  *	(See accompanying file LICENSE_1_0.txt or copy at
@@ -24,6 +24,7 @@ namespace nana{ namespace drawerbase
 		struct drawer::implement
 		{
 			widget * widget_ptr;
+			scheme * scheme_ptr;
 			bool react;
 			bool radio;
 			facade<element::crook> crook;
@@ -47,6 +48,7 @@ namespace nana{ namespace drawerbase
 			void drawer::attached(widget_reference widget, graph_reference)
 			{
 				impl_->widget_ptr = &widget;
+				impl_->scheme_ptr =static_cast<scheme*>(API::dev::get_scheme(widget));
 				API::dev::enable_space_click(widget, true);
 			}
 
@@ -55,7 +57,7 @@ namespace nana{ namespace drawerbase
 				auto wdg = impl_->widget_ptr;
 
 				//draw background
-				if (bground_mode::basic != API::effects_bground_mode(*wdg))
+				if (!API::dev::copy_transparent_background(*wdg, graph))
 					graph.rectangle(true, wdg->bgcolor());
 
 				//draw title
@@ -68,18 +70,28 @@ namespace nana{ namespace drawerbase
 					if (!wdg->enabled())
 					{
 						graph.palette(true, colors::white);
-						tr.render({ 17 + interval, 2 }, title.c_str(), title.length(), pixels);
+						tr.render({ 17 + interval, 2 }, title.c_str(), title.length(), pixels, paint::text_renderer::mode::word_wrap);
 						graph.palette(true, static_cast<color_rgb>(0x808080));
 					}
 					else
 						graph.palette(true, wdg->fgcolor());
 
-					tr.render({ 16 + interval, 1 }, title.c_str(), title.length(), pixels);
+					tr.render({ 16 + interval, 1 }, title.c_str(), title.length(), pixels, paint::text_renderer::mode::word_wrap);
 				}
 
 				//draw crook
-				auto txt_px = graph.text_extent_size(L"jN", 2).height + 2;
-				impl_->crook.draw(graph, wdg->bgcolor(), wdg->fgcolor(), rectangle(0, txt_px > 16 ? (txt_px - 16) / 2 : 0, 16, 16), API::element_state(*wdg));
+
+				unsigned txt_px = 0, descent = 0, ileading = 0;
+				graph.text_metrics(txt_px, descent, ileading);
+				txt_px += (descent + 2);
+
+				auto e_state = API::element_state(*wdg);
+				if(!wdg->enabled())
+					e_state = element_state::disabled;
+
+				impl_->crook.draw(graph,
+					impl_->scheme_ptr->square_bgcolor.get(wdg->bgcolor()), impl_->scheme_ptr->square_border_color.get(wdg->fgcolor()),
+					rectangle(0, txt_px > 16 ? (txt_px - 16) / 2 : 0, 16, 16), e_state);
 			}
 
 			void drawer::mouse_down(graph_reference graph, const arg_mouse&)
@@ -163,12 +175,12 @@ namespace nana{ namespace drawerbase
 			return (get_drawer_trigger().impl()->crook.checked() != drawerbase::checkbox::crook_state::unchecked);
 		}
 
-		void checkbox::check(bool chk)
+		void checkbox::check(bool state)
 		{
 			using crook_state = drawerbase::checkbox::crook_state;
-			if (checked() != chk)
+			if (checked() != state)
 			{
-				get_drawer_trigger().impl()->crook.check(chk ? crook_state::checked : crook_state::unchecked);
+				get_drawer_trigger().impl()->crook.check(state ? crook_state::checked : crook_state::unchecked);
 				API::refresh_window(handle());
 
 				arg_checkbox arg(this);
@@ -193,7 +205,7 @@ namespace nana{ namespace drawerbase
 
 		bool checkbox::transparent() const
 		{
-			return (bground_mode::basic == API::effects_bground_mode(*this));
+			return API::is_transparent_background(*this);
 		}
 	//end class checkbox
 
@@ -204,6 +216,7 @@ namespace nana{ namespace drawerbase
 			{
 				e.uiobj->radio(false);
 				e.uiobj->react(true);
+				API::umake_event(e.eh_clicked);
 				API::umake_event(e.eh_checked);
 				API::umake_event(e.eh_destroy);
 				API::umake_event(e.eh_keyboard);
@@ -220,7 +233,7 @@ namespace nana{ namespace drawerbase
 
 			el.uiobj = &uiobj;
 
-			uiobj.events().checked.connect_unignorable([this](const arg_checkbox& arg)
+			el.eh_checked = uiobj.events().checked.connect_unignorable([this](const arg_checkbox& arg)
 			{
 				if (arg.widget->checked())
 				{
@@ -232,7 +245,7 @@ namespace nana{ namespace drawerbase
 				}
 			}, true);
 
-			el.eh_checked = uiobj.events().click.connect_unignorable([this](const arg_click& arg)
+			el.eh_clicked = uiobj.events().click.connect_unignorable([this](const arg_click& arg)
 			{
 				for (auto & i : ui_container_)
 					i.uiobj->check(arg.window_handle == i.uiobj->handle());
@@ -285,8 +298,7 @@ namespace nana{ namespace drawerbase
 				}
 			});
 			
-
-			ui_container_.push_back(el);
+			ui_container_.emplace_back(el);
 		}
 
 		std::size_t radio_group::checked() const
@@ -297,7 +309,7 @@ namespace nana{ namespace drawerbase
 					return static_cast<std::size_t>(i - ui_container_.cbegin());
 			}
 
-			return ui_container_.size();
+			return npos;
 		}
 
 		std::size_t radio_group::size() const

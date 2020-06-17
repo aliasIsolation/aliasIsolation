@@ -1,29 +1,38 @@
-/*
+/**
  *	A Message Box Class
  *	Nana C++ Library(http://www.nanapro.org)
- *	Copyright(C) 2003-2015 Jinhao(cnjinhao@hotmail.com)
+ *	Copyright(C) 2003-2019 Jinhao(cnjinhao@hotmail.com)
  *
  *	Distributed under the Boost Software License, Version 1.0.
  *	(See accompanying file LICENSE_1_0.txt or copy at
  *	http://www.boost.org/LICENSE_1_0.txt)
  *
- *	@file: nana/gui/msgbox.hpp
+ *	@file nana/gui/msgbox.hpp
+ *	@Contributors
+ *		James Bremner
+ *		Ariel Vina-Rodriguez
  */
+#define NOMINMAX
+#include <algorithm>  // max
+#include <functional>
+#include <cstdlib>    //include std::abs
 
-#include <nana/gui.hpp>
+#include <nana/gui/compact.hpp>
+#include <nana/gui/msgbox.hpp>
+#include <nana/gui/drawing.hpp>
+#include <nana/gui/widgets/form.hpp>
 #include <nana/gui/widgets/label.hpp>
 #include <nana/gui/widgets/button.hpp>
 #include <nana/gui/widgets/spinbox.hpp>
+#include <nana/gui/widgets/checkbox.hpp>
 #include <nana/gui/widgets/combox.hpp>
 #include <nana/gui/widgets/textbox.hpp>
 #include <nana/gui/widgets/panel.hpp>
 #include <nana/gui/widgets/picture.hpp>
-#include <nana/gui/place.hpp>
 #include <nana/datetime.hpp>
 #include <nana/internationalization.hpp>
 #include <nana/gui/filebox.hpp>
-#include <functional>
-#include <cstdlib>  //include std::abs
+
 #if defined(NANA_WINDOWS)
 	#include <windows.h>
 #elif defined(NANA_X11)
@@ -61,14 +70,14 @@ namespace nana
 				{
 					_m_click(arg);
 				});
-				yes_.caption("OK");
+				yes_.i18n(i18n_eval("NANA_BUTTON_OK"));
 				width_pixel += 77;
 
 				if(msgbox::yes_no == btn || msgbox::yes_no_cancel == btn)
 				{
-					yes_.caption("Yes");
+					yes_.i18n(i18n_eval("NANA_BUTTON_YES"));
 					no_.create(*this);
-					no_.caption("No");
+					no_.i18n(i18n_eval("NANA_BUTTON_NO"));
 					no_.events().click.connect_unignorable([this](const arg_click& arg)
 					{
 						_m_click(arg);
@@ -79,7 +88,7 @@ namespace nana
 					if(msgbox::yes_no_cancel == btn)
 					{
 						cancel_.create(*this);
-						cancel_.caption("Cancel");
+						cancel_.i18n(i18n_eval("NANA_BUTTON_CANCEL"));
 						cancel_.events().click.connect_unignorable([this](const arg_click& arg)
 						{
 							_m_click(arg);
@@ -451,7 +460,20 @@ namespace nana
         default:    break;
 		}
 
-		auto bt = ::MessageBoxW(reinterpret_cast<HWND>(API::root(wd_)), to_wstring(sstream_.str()).c_str(), to_wstring(title_).c_str(), type);
+		//Disables the owner window to prevent the owner window processing mouse wheel event
+		//when the message box is showing and scroll the wheel on the owner window.
+		auto native = reinterpret_cast<HWND>(API::root(wd_));
+		BOOL enabled = FALSE;
+		if (native)
+		{
+			enabled = ::IsWindowEnabled(native);
+			if (enabled)
+				::EnableWindow(native, FALSE);
+		}
+		auto bt = ::MessageBoxW(native, to_wstring(sstream_.str()).c_str(), to_wstring(title_).c_str(), type);
+
+		if (native && enabled)
+			::EnableWindow(native, TRUE);
 
 		switch(bt)
 		{
@@ -476,24 +498,32 @@ namespace nana
 	//end class msgbox
 
 
-	//class inputbox
+	//class inputbox todo: add schema
 
 	class inputbox_window
 		: public ::nana::form
 	{
 	public:
-		inputbox_window(window owner, paint::image (&imgs)[4], ::nana::rectangle (&valid_areas)[4], const ::std::string & desc, const ::std::string& title, std::size_t contents, unsigned fixed_pixels, const std::vector<unsigned>& each_height)
+		inputbox_window(window owner,
+		                paint::image (&imgs)[4],             ///< 4 ref to images
+		                ::nana::rectangle (&valid_areas)[4],
+		                const ::std::string & description,
+		                const ::std::string& title,
+		                std::size_t contents,
+		                unsigned fixed_pixels,
+		                const std::vector<unsigned>& each_height)
+
 			: form(owner, API::make_center(owner, 500, 300), appear::decorate<>())
 		{
-			throw_not_utf8(desc);
+			throw_not_utf8(description);
 			throw_not_utf8(title);
 
-			desc_.create(*this);
-			desc_.format(true).caption(desc);
-			auto desc_extent = desc_.measure(470);
+			description_.create(*this);
+			description_.format(true).caption(description);
+			auto description_size = description_.measure(470);
 
 			btn_ok_.create(*this);
-			btn_ok_.i18n(i18n_eval("OK"));
+			btn_ok_.i18n(i18n_eval("NANA_BUTTON_OK"));
 			btn_ok_.events().click.connect_unignorable([this]{
 
 				if (verifier_ && !verifier_(handle()))
@@ -504,38 +534,31 @@ namespace nana
 			});
 
 			btn_cancel_.create(*this);
-			btn_cancel_.i18n(i18n_eval("Cancel"));
+			btn_cancel_.i18n(i18n_eval("NANA_BUTTON_CANCEL"));
 			btn_cancel_.events().click.connect_unignorable([this]{
 				close();
 			});
 
-			unsigned height = 20 + desc_extent.height + 10 + 38;
-
-			place_.bind(*this);
+			unsigned height = 20 + description_size.height + 10 + 38;
 			std::stringstream ss_content;
-			ss_content << "<margin=10 vert <desc weight=" << desc_extent.height << "><vert margin=[10]";
 
 			for (std::size_t i = 0; i < contents; ++i)
 			{
-				unsigned px = 27;
-				if (each_height[i] > 27)
-					px = each_height[i];
+				unsigned px = std::max(27u, each_height[i]);
 
-				ss_content << "<weight=" << px << " margin=[3] input_" << i << ">";
+				ss_content << "<height=" << (px + 3) << " margin=[3] input_" << i << ">";
 
-				height += px + 1;
+				height += px + 3;
 			}
 
-			ss_content << "><margin=[15] weight=38<><buttons arrange=80 gap=10 weight=170>>>";
-
-			if (desc_extent.width < 170)
-				desc_extent.width = 170;
+			if (description_size.width < 200)
+				description_size.width = 200;
 
 			//Make sure the complete display of input extent
-			if (desc_extent.width < fixed_pixels)
-				desc_extent.width = fixed_pixels;
+			if (description_size.width < fixed_pixels)
+				description_size.width = fixed_pixels;
 
-			desc_extent.width += 20;
+			description_size.width += 20;  // 2x margin 10
 
 			::nana::size img_sz[4];
 
@@ -549,8 +572,9 @@ namespace nana
 				}
 				else
 					sz = imgs[2].size();
-				sz.width = static_cast<size::value_type>(double(sz.width) * (double(height) / double(sz.height)));
-				desc_extent.width += sz.width;
+				const double scale_factor = double(height) / double(sz.height);
+				sz.width = static_cast<size::value_type>(double(sz.width) * scale_factor);
+				description_size.width += sz.width;
 			}
 
 			if (imgs[3])	//Right
@@ -564,7 +588,7 @@ namespace nana
 				else
 					sz = imgs[3].size();
 				sz.width = static_cast<size::value_type>(double(sz.width) * (double(height) / double(sz.height)));
-				desc_extent.width += sz.width;
+				description_size.width += sz.width;
 			}
 
 			if (imgs[0])	//Top
@@ -577,7 +601,8 @@ namespace nana
 				}
 				else
 					sz = imgs[0].size();
-				sz.height = static_cast<size::value_type>(double(sz.height) * (double(desc_extent.width) / double(sz.width)));
+                const double scale_factor = double(description_size.width) / double(sz.width);
+				sz.height = static_cast<size::value_type>(double(sz.height) * scale_factor );
 				height += sz.height;
 			}
 
@@ -591,16 +616,29 @@ namespace nana
 				}
 				else
 					sz = imgs[1].size();
-				sz.height = static_cast<size::value_type>(double(sz.height) * (double(desc_extent.width) / double(sz.width)));
+                const double scale_factor = double(description_size.width) / double(sz.width);
+                sz.height = static_cast<size::value_type>(double(sz.height) * scale_factor);
 				height += sz.height;
 			}
 
 			std::stringstream ss;
-			ss << "vert<img_top weight="<<img_sz[0].height<<"><<img_left weight="<<img_sz[2].width<<">"<<ss_content.str()<<"<img_right weight="<<img_sz[3].width<<">><img_bottom weight="<<img_sz[1].height<<">";
+			ss << "vert<  img_top    height="<<img_sz[0].height<<">"
+			   <<"     << img_left   width=" <<img_sz[2].width <<">"
+               <<"      <margin=10 vert <description height=" << description_size.height << ">"  // added height: 2x10
+               <<"                      <vert margin=[10]"                                       // added height: 10
+			   <<                                          ss_content.str()
+			   <<"                      >"
+			   <<"                      <height=38 margin=[15] <><width=170 buttons arrange=80 gap=10>"
+               <<"      >>"                                                    // added height: 38
+			   <<"      < img_right  width=" <<img_sz[3].width
+			   <<"    >>< img_bottom height="<<img_sz[1].height<<">";
 
-			place_.div(ss.str().data());
-			place_["desc"] << desc_;
-			place_["buttons"] << btn_ok_ << btn_cancel_;
+			// added height: 10 x3 = 30 + 38
+
+			auto& place = this->get_place();
+			place.div(ss.str().c_str());
+			place["description"] << description_;
+			place["buttons"] << btn_ok_ << btn_cancel_;
 
 			const char * img_fields[4] = {"img_top", "img_bottom", "img_left", "img_right"};
 
@@ -611,14 +649,13 @@ namespace nana
 					images_[i].create(*this, true);
 					images_[i].load(imgs[i], valid_areas[i]);
 					images_[i].stretchable(0, 0, 0, 0);
-					place_[img_fields[i]] << images_[i];
-					place_.field_display(img_fields[i], true);
+					place[img_fields[i]] << images_[i];
 				}
-				else
-					place_.field_display(img_fields[i], false);
+
+				place.field_display(img_fields[i], imgs[i]);
 			}
 
-			size({desc_extent.width, height });
+			move(API::make_center(this->owner(), description_size.width, height));
 			caption(title);
 		}
 
@@ -626,14 +663,14 @@ namespace nana
 		{
 			verifier_ = std::move(verifier);
 
-			std::size_t index = 0;
+			unsigned index = 0;
 			for (auto wd : inputs)
 			{
 				std::stringstream ss;
 				ss << "input_" << index++;
-				place_[ss.str().data()] << wd;
+				this->operator[](ss.str().data()) << wd;
 			}
-			place_.collocate();
+			this->collocate();
 			show();
 		}
 
@@ -642,11 +679,10 @@ namespace nana
 			return valid_input_;
 		}
 	private:
-		::nana::label	desc_;
+		::nana::label	description_;
 		::nana::button	btn_ok_;
 		::nana::button	btn_cancel_;
 		bool	valid_input_{ false };
-		::nana::place	place_;
 		std::function<bool(window)> verifier_;
 		::nana::picture	images_[4];
 	};
@@ -654,6 +690,70 @@ namespace nana
 	unsigned inputbox::abstract_content::fixed_pixels() const
 	{
 		return 0;
+	}
+
+	//class boolean
+	struct inputbox::boolean::implement
+	{
+		bool value;
+		::std::string empty_label_text;
+		::std::string label_text;
+		::nana::panel<false> dock;
+		::nana::checkbox checkbox;
+	};
+
+	inputbox::boolean::boolean(::std::string label, bool initial_value)
+		: impl_(new implement)
+	{
+		impl_->value = initial_value;
+		impl_->label_text = std::move(label);
+		impl_->empty_label_text = "   ";
+	}
+
+	inputbox::boolean::~boolean()
+	{}
+
+	bool inputbox::boolean::value() const
+	{
+		return (impl_->checkbox.empty() ? impl_->value : impl_->checkbox.checked());
+	}
+
+	//Implementation of abstract_content
+	const ::std::string& inputbox::boolean::label() const
+	{
+		return impl_->empty_label_text;
+	}
+
+	window inputbox::boolean::create(window owner, unsigned label_px)
+	{
+		auto impl = impl_.get();
+
+		impl->dock.create(owner);
+
+		paint::graphics graph{ ::nana::size{ 10, 10 } };
+		auto value_px = graph.text_extent_size(impl->label_text).width + 20;
+
+		impl->checkbox.create(impl->dock, rectangle{ (std::max)(static_cast<int>(label_px) - 18, 0), 0, value_px, 0 });
+		impl->checkbox.check(impl->value);
+		impl->checkbox.caption(impl->label_text);
+
+		impl->dock.events().resized.connect_unignorable([impl, value_px](const ::nana::arg_resized&)
+		{
+			impl->checkbox.size({ value_px, 24 });
+		});
+
+		impl->checkbox.events().destroy.connect_unignorable([impl](const arg_destroy&)
+		{
+			impl->value = impl->checkbox.checked();
+		});
+
+		return impl->dock;
+	}
+
+	unsigned inputbox::boolean::fixed_pixels() const
+	{
+		paint::graphics graph{ ::nana::size{ 10, 10 } };
+		return graph.text_extent_size(impl_->label_text).width;
 	}
 
 	//class integer
@@ -681,7 +781,7 @@ namespace nana
 		impl->label_text = std::move(label);
 	}
 
-	//Instance for impl_ because implmenet is incomplete type at the point of declaration
+	//Instance for impl_ because implement is incomplete type at the point of declaration
 	inputbox::integer::~integer(){}
 
 	int inputbox::integer::value() const
@@ -708,20 +808,17 @@ namespace nana
 		impl->label.caption(impl->label_text);
 		impl->label.format(true);
 
-		//get the longest value
-		int longest = (std::abs(static_cast<int>(impl->begin < 0 ? impl->begin * 10 : impl->begin)) < std::abs(static_cast<int>(impl->last < 0 ? impl->last * 10 : impl->last)) ? impl->last : impl->begin);
-		paint::graphics graph{ ::nana::size{ 10, 10 } };
-		auto value_px = graph.text_extent_size(std::to_wstring(longest)).width + 34;
+		auto const value_px = fixed_pixels();
 
 		impl->spinbox.create(impl->dock, rectangle{ static_cast<int>(label_px + 10), 0, value_px, 0 });
 		impl->spinbox.range(impl->begin, impl->last, impl->step);
 
 		impl->spinbox.value(std::to_string(impl->value));
 
-		impl->dock.events().resized.connect_unignorable([impl, label_px, value_px](const ::nana::arg_resized&)
+		impl->dock.events().resized.connect_unignorable([impl, label_px, value_px](const ::nana::arg_resized& arg)
 		{
-			impl->label.size({ label_px, 24 });
-			impl->spinbox.size({ value_px, 24 });
+			impl->label.size({ label_px, arg.height });
+			impl->spinbox.move({static_cast<int>(label_px + 10), (static_cast<int>(arg.height) - 25) / 2, value_px, 24 });
 		});
 
 		impl->spinbox.events().destroy.connect_unignorable([impl](const arg_destroy&)
@@ -730,6 +827,14 @@ namespace nana
 		});
 
 		return impl->dock;
+	}
+
+	unsigned inputbox::integer::fixed_pixels() const
+	{
+		//get the longest value
+		int longest = (std::abs(static_cast<int>(impl_->begin < 0 ? impl_->begin * 10 : impl_->begin)) < std::abs(static_cast<int>(impl_->last < 0 ? impl_->last * 10 : impl_->last)) ? impl_->last : impl_->begin);
+		paint::graphics graph{ ::nana::size{ 10, 10 } };
+		return graph.text_extent_size(std::to_wstring(longest)).width + 34;
 	}
 	//end class integer
 
@@ -759,7 +864,7 @@ namespace nana
 		impl->label_text = std::move(label);
 	}
 
-	//Instance for impl_ because implmenet is incomplete type at the point of declaration
+	//Instance for impl_ because implement is incomplete type at the point of declaration
 	inputbox::real::~real(){}
 
 	double inputbox::real::value() const
@@ -786,20 +891,17 @@ namespace nana
 		impl->label.caption(impl->label_text);
 		impl->label.format(true);
 
-		//get the longest value
-		auto longest = (std::abs(static_cast<int>(impl->begin < 0 ? impl->begin * 10 : impl->begin)) < std::abs(static_cast<int>(impl->last < 0 ? impl->last * 10 : impl->last)) ? impl->last : impl->begin);
-		paint::graphics graph{ ::nana::size{ 10, 10 } };
-		auto value_px = graph.text_extent_size(std::to_wstring(longest)).width + 34;
+		auto value_px = fixed_pixels();
 
 		impl->spinbox.create(impl->dock, rectangle{ static_cast<int>(label_px + 10), 0, value_px, 0 });
 		impl->spinbox.range(impl->begin, impl->last, impl->step);
 
 		impl->spinbox.value(std::to_string(impl->value));
 
-		impl->dock.events().resized.connect_unignorable([impl, label_px, value_px](const ::nana::arg_resized&)
+		impl->dock.events().resized.connect_unignorable([impl, label_px, value_px](const ::nana::arg_resized& arg)
 		{
-			impl->label.size(::nana::size{ label_px, 24 });
-			impl->spinbox.size(::nana::size{ value_px, 24 });
+			impl->label.size({ label_px, arg.height });
+			impl->spinbox.move({ static_cast<int>(label_px + 10), (static_cast<int>(arg.height) - 25) / 2, value_px, 24 });
 		});
 
 		impl->spinbox.events().destroy.connect_unignorable([impl](const arg_destroy&)
@@ -808,6 +910,14 @@ namespace nana
 		});
 
 		return impl->dock;
+	}
+
+	unsigned inputbox::real::fixed_pixels() const
+	{
+		//get the longest value
+		auto longest = (std::abs(static_cast<int>(impl_->begin < 0 ? impl_->begin * 10 : impl_->begin)) < std::abs(static_cast<int>(impl_->last < 0 ? impl_->last * 10 : impl_->last)) ? impl_->last : impl_->begin);
+		paint::graphics graph{ ::nana::size{ 10, 10 } };
+		return graph.text_extent_size(std::to_wstring(longest)).width + 34;
 	}
 	//end class real
 
@@ -846,7 +956,7 @@ namespace nana
 		impl_->label_text.swap(label);
 	}
 
-	//Instance for impl_ because implmenet is incomplete type at the point of declaration
+	//Instance for impl_ because implement is incomplete type at the point of declaration
 	inputbox::text::~text(){}
 
 	void inputbox::text::tip_string(std::wstring tip)
@@ -890,7 +1000,7 @@ namespace nana
 		impl->label.caption(impl->label_text);
 		impl->label.format(true);
 
-		unsigned value_px = 0;
+		unsigned const value_px = fixed_pixels();
 		if (impl->options.empty())
 		{
 			impl->textbox.create(impl->dock, rectangle{ static_cast<int>(label_px + 10), 0, 0, 0 });
@@ -901,16 +1011,6 @@ namespace nana
 		}
 		else
 		{
-			//get the longest value
-			paint::graphics graph{ ::nana::size{ 10, 10 } };
-			for (auto & s : impl->options)
-			{
-				auto px = graph.text_extent_size(s).width;
-				if (px > value_px)
-					value_px = px;
-			}
-			value_px += 34;
-
 			impl->combox.create(impl->dock, rectangle{ static_cast<int>(label_px + 10), 0, value_px, 0 });
 
 			for (auto & s : impl->options)
@@ -922,10 +1022,10 @@ namespace nana
 		impl->dock.events().resized.connect_unignorable([impl, label_px, value_px](const ::nana::arg_resized& arg)
 		{
 			impl->label.size({ label_px, arg.height });
-			if (value_px)
-				impl->combox.size({ value_px, 24 });
+			if (impl->textbox.empty())
+				impl->combox.move({static_cast<int>(label_px + 10), (static_cast<int>(arg.height) - 25) / 2, value_px, 24 });
 			else
-				impl->textbox.size({arg.width - label_px - 10, 24});
+				impl->textbox.move({ static_cast<int>(label_px + 10), (static_cast<int>(arg.height) - 25) / 2, arg.width - label_px - 10, 24 });
 		});
 
 		auto & wdg = (value_px ? static_cast<widget&>(impl->combox) : static_cast<widget&>(impl->textbox));
@@ -934,6 +1034,24 @@ namespace nana
 			impl->value = wdg.caption();
 		});
 		return impl->dock;
+	}
+
+	unsigned inputbox::text::fixed_pixels() const
+	{
+		if (impl_->options.empty())
+			return 0;
+
+		paint::graphics graph{ ::nana::size{ 10, 10 } };
+		unsigned long_px = 0;
+		//get the longest value
+		for (auto & s : impl_->options)
+		{
+			auto px = graph.text_extent_size(s).width;
+			if (px > long_px)
+				long_px = px;
+		}
+
+		return long_px + 34;
 	}
 	//end class text
 
@@ -959,7 +1077,7 @@ namespace nana
 		impl_->label_text.swap(label);
 	}
 
-	//Instance for impl_ because implmenet is incomplete type at the point of declaration
+	//Instance for impl_ because implement is incomplete type at the point of declaration
 	inputbox::date::~date(){}
 
 	::std::string inputbox::date::value() const
@@ -1031,17 +1149,18 @@ namespace nana
 		impl->dock.events().resized.connect_unignorable([impl, label_px](const ::nana::arg_resized& arg)
 		{
 			impl->label.size({ label_px, arg.height });
-			auto sz = impl->wdg_month.size();
-			sz.height = 24;
-			impl->wdg_month.size(sz);
 
-			sz = impl->wdg_day.size();
-			sz.height = 24;
-			impl->wdg_day.size(sz);
+			rectangle rt{static_cast<int>(label_px + 10), (static_cast<int>(arg.height) - 25) / 2, 94, 24};
 
-			sz = impl->wdg_year.size();
-			sz.height = 24;
-			impl->wdg_year.size(sz);
+			impl->wdg_month.move(rt);
+
+			rt.x += 104;
+			rt.width = 38;
+			impl->wdg_day.move(rt);
+
+			rt.x += 48;
+			rt.width = 50;
+			impl->wdg_year.move(rt);
 		});
 
 		auto destroy_fn = [impl](const arg_destroy& arg)
@@ -1109,7 +1228,7 @@ namespace nana
 	{
 	}
 
-	//Instance for impl_ because implmenet is incomplete type at the point of declaration
+	//Instance for impl_ because implement is incomplete type at the point of declaration
 	inputbox::path::~path(){}
 
 	::std::string inputbox::path::value() const
@@ -1141,13 +1260,14 @@ namespace nana
 		impl->path_edit.multi_lines(false);
 
 		impl->browse.create(impl->dock);
-		impl->browse.i18n(i18n_eval("Browse"));
+		impl->browse.i18n(i18n_eval("NANA_BUTTON_BROWSE"));
 		impl->browse.events().click.connect_unignorable([wd, impl](const arg_click&)
 		{
 			impl->fbox.owner(wd);
-			if (impl->fbox.show())
+			auto files = impl->fbox.show();
+			if(!files.empty())
 			{
-				impl->value = impl->fbox.file();
+				impl->value = files.front().string();
 				impl->path_edit.caption(impl->value);
 			}
 		});
@@ -1155,8 +1275,13 @@ namespace nana
 		impl->dock.events().resized.connect_unignorable([impl, label_px](const ::nana::arg_resized& arg)
 		{
 			impl->label.size({ label_px, arg.height });
-			impl->path_edit.size({arg.width - label_px - 75, arg.height});
-			impl->browse.move({static_cast<int>(arg.width - 60), 0, 60, arg.height});
+
+			rectangle rt{ static_cast<int>(label_px)+10, (static_cast<int>(arg.height) - 25), arg.width - label_px - 75, 24};
+			impl->path_edit.move(rt);
+
+			rt.x = static_cast<int>(arg.width - 60);
+			rt.width = 60;
+			impl->browse.move(rt);
 		});
 
 		impl->path_edit.events().destroy.connect_unignorable([impl](const arg_destroy&)
@@ -1172,7 +1297,8 @@ namespace nana
 	inputbox::inputbox(window owner, ::std::string desc, ::std::string title)
 		:	owner_{ owner },
 			description_(std::move(desc)),
-			title_(std::move(title))
+			title_(std::move(title)),
+			min_width_entry_field_pixels_( 100 )
 	{}
 
 	void inputbox::image(::nana::paint::image img, bool is_left, const rectangle& valid_area)
@@ -1194,14 +1320,29 @@ namespace nana
 		verifier_ = std::move(verifier);
 	}
 
+	//Inputbox set minimum width entry field(https://github.com/cnjinhao/nana/pull/234)
+	//Contributed by James Bremner
+	void inputbox::min_width_entry_field( unsigned pixels )
+	{
+	    // don't let the entry fields vanish entirely
+	    if( pixels < 10 )
+            pixels = 10;
+
+        min_width_entry_field_pixels_ = pixels;
+	}
+
+#ifndef __cpp_fold_expressions
 	void inputbox::_m_fetch_args(std::vector<abstract_content*>&)
 	{}
+#endif
 
 	bool inputbox::_m_open(std::vector<abstract_content*>& contents, bool modal)
 	{
 		std::vector<unsigned> each_pixels;
 		unsigned label_px = 0, fixed_px = 0;
 		paint::graphics graph({ 5, 5 });
+
+		bool has_0_fixed_px = false;
 		for (auto p : contents)
 		{
 			auto px = label::measure(graph, p->label(), 150, true, align::right, align_v::center);
@@ -1209,11 +1350,16 @@ namespace nana
 				label_px = px.width;
 
 			px.width = p->fixed_pixels();
+			has_0_fixed_px |= (px.width == 0);
 			if (px.width > fixed_px)
 				fixed_px = px.width;
 
 			each_pixels.push_back(px.height);
 		}
+
+		//Ensure that the entry fields are at least as wide as the minimum
+		if (has_0_fixed_px && (fixed_px < min_width_entry_field_pixels_ ))
+			fixed_px = min_width_entry_field_pixels_;
 
 		inputbox_window input_wd(owner_, images_, valid_areas_, description_, title_, contents.size(), label_px + 10 + fixed_px, each_pixels);
 

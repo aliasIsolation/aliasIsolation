@@ -1,7 +1,7 @@
 /*
  *	Basic Types definition
  *	Nana C++ Library(http://www.nanapro.org)
- *	Copyright(C) 2003-2015 Jinhao(cnjinhao@hotmail.com)
+ *	Copyright(C) 2003-2017 Jinhao(cnjinhao@hotmail.com)
  *
  *	Distributed under the Boost Software License, Version 1.0.
  *	(See accompanying file LICENSE_1_0.txt or copy at
@@ -53,11 +53,6 @@ namespace nana
 			a_((static_cast<int>(rgba) & 0xFF) / 255.0)
 	{}
 
-	color::color(unsigned red, unsigned green, unsigned blue)
-		: r_(red), g_(green), b_(blue), a_(1.0)
-	{
-	}
-
 	color::color(unsigned red, unsigned green, unsigned blue, double alpha)
 		: r_(red), g_(green), b_(blue), a_(alpha)
 	{
@@ -105,7 +100,7 @@ namespace nana
 	//Initializes the color with a CSS-like string
 	//contributor: BigDave(mortis2007 at hotmail co uk)
 	//date: February 3, 2015
-	//maintainor: Jinhao, extended the support of CSS-spec
+	//maintainer: Jinhao, extended the support of CSS-spec
 
 	color::color(std::string css_color)
 		: a_(1.0)
@@ -191,10 +186,12 @@ namespace nana
 				throw std::invalid_argument(excpt_what);
 			
 			std::vector<std::string> rgb;
-
+#ifdef _nana_std_has_emplace_return_type
+			auto const is_real = (rgb.emplace_back(i->str()).back() == '%');
+#else
 			rgb.emplace_back(i->str());
-
 			const bool is_real = (rgb.back().back() == '%');
+#endif
 			pat.assign(is_real ? "(\\d*\\.)?\\d+\\%" : "\\d+");
 
 			for (++i; i != end; ++i)
@@ -280,9 +277,13 @@ namespace nana
 		{
 			std::vector<std::string> rgb;
 
+#ifdef _nana_std_has_emplace_return_type
+			auto const is_real = (rgb.emplace_back(std::move(str)).back() == '%');
+#else
 			rgb.emplace_back(std::move(str));
 
 			const bool is_real = (rgb.back().back() == '%');
+#endif
 
 			for (int i = 0; i < 2; ++i)
 			{
@@ -426,47 +427,12 @@ namespace nana
 		return *this;
 	}
 
-	color color::blend(const color& bgcolor, bool ignore_bgcolor_alpha) const
-	{
-		if (a_ < 1.0)
-		{
-			color result;
-			if (0.0 < a_)
-			{
-				if (ignore_bgcolor_alpha || (1.0 == bgcolor.b_))
-				{
-					result.r_ = r_ * a_ + bgcolor.r_ * (1.0 - a_);
-					result.g_ = g_ * a_ + bgcolor.g_ * (1.0 - a_);
-					result.b_ = b_ * a_ + bgcolor.b_ * (1.0 - a_);
-					result.a_ = 1.0;
-				}
-				else
-				{
-					result.r_ = r_ * a_ + bgcolor.r_ * bgcolor.a_ * (1.0 - a_);
-					result.g_ = g_ * a_ + bgcolor.g_ * bgcolor.a_ * (1.0 - a_);
-					result.b_ = b_ * a_ + bgcolor.b_ * bgcolor.a_ * (1.0 - a_);
-					result.a_ = a_ + (bgcolor.a_ * (1.0 - a_));
-				}
-			}
-			else
-			{
-				result.r_ = bgcolor.r_;
-				result.g_ = bgcolor.g_;
-				result.b_ = bgcolor.b_;
-				result.a_ = (ignore_bgcolor_alpha ? 1.0 : bgcolor.a_);
-			}
-			return result;
-		}
-
-		return *this;
-	}
-
 	color color::blend(const color& bgcolor, double alpha) const
 	{
 		color result;
-		result.r_ = r_ * alpha + bgcolor.r_ * (1.0 - alpha);
-		result.g_ = g_ * alpha + bgcolor.g_ * (1.0 - alpha);
-		result.b_ = b_ * alpha + bgcolor.b_ * (1.0 - alpha);
+		result.r_ = r_ * (1.0 - alpha) + bgcolor.r_ * alpha;
+		result.g_ = g_ * (1.0 - alpha) + bgcolor.g_ * alpha;
+		result.b_ = b_ * (1.0 - alpha) + bgcolor.b_ * alpha;
 		result.a_ = 1.0;
 		return result;
 	}
@@ -631,30 +597,30 @@ namespace nana
 			return *this;
 		}
 
-		/*
-		rectangle& rectangle::set_size(const size& sz)
-		{
-			width = sz.width;
-			height = sz.height;
-			return *this;
-		}
-		*/
-
 		rectangle& rectangle::pare_off(int pixels)
 		{
 			x += pixels;
 			y += pixels;
-			width -= (pixels << 1);
-			height -= (pixels << 1);
+			auto const px_twice = (pixels << 1);
+			if (px_twice > static_cast<int>(width))
+				width = 0;
+			else
+				width -= px_twice;
+
+			if (px_twice > static_cast<int>(height))
+				height = 0;
+			else
+				height -= px_twice;
+
 			return *this;
 		}
 
-		int rectangle::right() const
+		int rectangle::right() const noexcept
 		{
 			return x + static_cast<int>(width);
 		}
 
-		int rectangle::bottom() const
+		int rectangle::bottom() const noexcept
 		{
 			return y + static_cast<int>(height);
 		}

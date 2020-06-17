@@ -1,7 +1,7 @@
 /*
  *	A Spin box widget
  *	Nana C++ Library(http://www.nanapro.org)
- *	Copyright(C) 2003-2015 Jinhao(cnjinhao@hotmail.com)
+ *	Copyright(C) 2003-2019 Jinhao(cnjinhao@hotmail.com)
  *
  *	Distributed under the Boost Software License, Version 1.0.
  *	(See accompanying file LICENSE_1_0.txt or copy at
@@ -25,25 +25,6 @@ namespace nana
 	{
 		namespace spinbox
 		{
-
-			class event_agent
-				: public widgets::skeletons::textbase_event_agent_interface
-			{
-			public:
-				event_agent(::nana::spinbox& wdg)
-					: widget_(wdg)
-				{}
-
-				void first_change() override{}	//empty, because spinbox does not have this event.
-
-				void text_changed() override
-				{
-					widget_.events().text_changed.emit(::nana::arg_spinbox{ widget_ }, widget_.handle());
-				}
-			private:
-				::nana::spinbox & widget_;
-			};
-
 			enum class buttons
 			{
 				none, increase, decrease
@@ -73,6 +54,11 @@ namespace nana
 					: begin_{ vbegin }, last_{ vlast }, step_{ step }, value_{ vbegin }
 				{}
 
+				std::pair<T, T> range() const
+				{
+					return std::make_pair(begin_, last_);
+				}
+
 				std::string value() const override
 				{
 					return std::to_string(value_);
@@ -85,7 +71,8 @@ namespace nana
 
 					T v;
 					ss >> v;
-					if (v < begin_ || last_ < v)
+
+					if (ss.fail() || v < begin_ || last_ < v)
 						return false;
 
 					diff = (value_ != v);
@@ -95,10 +82,39 @@ namespace nana
 
 				bool check_value(const std::string& str) const override
 				{
+#ifdef __cpp_if_constexpr
+					auto i = str.c_str();
+					if ('+' == *i || '-' == *i)
+						++i;
+
+					if constexpr(std::is_same<T, int>::value)
+					{
+						for (; 0 != *i; ++i)
+						{
+							if (*i < '0' || '9' < *i)
+								return false;
+						}
+					}
+					else
+					{
+						bool dot = false;
+						for (; 0 != *i; ++i)
+						{
+							if (('.' == *i) && (!dot))
+							{
+								dot = true;
+								continue;
+							}
+
+							if (*i < '0' || '9' < *i)
+								return false;
+						}
+					}
+#else
 					if (str.empty())
 						return true;
 
-					auto size = str.size();
+					auto const size = str.size();
 					std::size_t pos = 0;
 					if (str[0] == '+' || str[0] == '-')
 						pos = 1;
@@ -128,6 +144,7 @@ namespace nana
 								return false;
 						}
 					}
+#endif
 					return true;
 				}
 
@@ -157,19 +174,14 @@ namespace nana
 				: public range_interface
 			{
 			public:
-				range_text(std::initializer_list<std::string> & initlist)
-					: texts_(initlist)
+				range_text(std::vector<std::string>&& texts):
+					texts_(std::move(texts))
 				{
-					for (auto & s : initlist)
-					{
-						texts_.emplace_back(std::string{ s });
-					}
 				}
 
-				range_text(std::initializer_list<std::wstring>& initlist)
+				const std::vector<std::string>& range() const
 				{
-					for (auto & s : initlist)
-						texts_.emplace_back(to_utf8(s));
+					return texts_;
 				}
 
 				std::string value() const override
@@ -229,6 +241,29 @@ namespace nana
 
 			class implementation
 			{
+				class event_agent
+					: public widgets::skeletons::textbase_event_agent_interface
+				{
+				public:
+					event_agent(implementation* impl)
+						: impl_(impl)
+					{}
+
+					void first_change() override {}	//empty, because spinbox does not have this event.
+
+					void text_changed() override
+					{
+						auto wdg = static_cast<nana::spinbox*>(API::get_widget(impl_->editor_->window_handle()));
+
+						if (!impl_->value(to_utf8(impl_->editor_->text()), false))
+							API::refresh_window(wdg->handle());
+
+						wdg->events().text_changed.emit(*wdg, wdg->handle());
+					}
+				private:
+					implementation* const impl_;
+				};
+
 			public:
 				implementation()
 				{
@@ -240,11 +275,11 @@ namespace nana
 						API::update_window(editor_->window_handle());
 
 						auto intv = timer_.interval();
-						if (intv > 50)
+						if (intv.count() > 50)
 							timer_.interval(intv / 2);
 					});
 
-					timer_.interval(600);
+					timer_.interval(std::chrono::milliseconds{ 600 });
 				}
 
 				void attach(::nana::widget& wdg, ::nana::paint::graphics& graph)
@@ -269,7 +304,7 @@ namespace nana
 						return range_->check_value(to_utf8(str));
 					});
 
-					evt_agent_.reset(new event_agent(static_cast<nana::spinbox&>(wdg)));
+					evt_agent_.reset(new event_agent{this});
 					editor_->textbase().set_event_agent(evt_agent_.get());
 
 					if (!range_)
@@ -277,8 +312,10 @@ namespace nana
 
 					reset_text();
 
+					//Spinbox doesn't process the tabstop unlike other text editors.
+					//Otherwise it would bring a weird user experience.
+					//Issued by jk.
 					API::tabstop(wd);
-					API::eat_tabstop(wd, true);
 					API::effects_edge_nimbus(wd, effects::edge_nimbus::active);
 					API::effects_edge_nimbus(wd, effects::edge_nimbus::over);
 					reset_text_area();
@@ -295,13 +332,13 @@ namespace nana
 					return range_->value();
 				}
 
-				bool value(const ::std::string& value_str)
+				bool value(const ::std::string& value_str, bool reset_editor)
 				{
 					bool diff;
 					if (!range_->value(value_str, diff))
 						return false;
 
-					if (diff)
+					if (diff && reset_editor)
 						reset_text();
 					return true;
 				}
@@ -311,6 +348,11 @@ namespace nana
 					range_.swap(ptr);
 
 					reset_text();
+				}
+
+				const range_interface* range() const
+				{
+					return range_.get();
 				}
 
 				void modifier(std::string&& prefix, std::string&& suffix)
@@ -354,7 +396,7 @@ namespace nana
 						API::release_capture(editor_->window_handle());
 
 						timer_.stop();
-						timer_.interval(600);
+						timer_.interval(std::chrono::milliseconds{ 600 });
 					}
 
 					if (buttons::none != spin_stated_)
@@ -372,7 +414,8 @@ namespace nana
 						return true;
 					}
 
-					if (editor_->mouse_pressed(arg))
+					editor_->mouse_pressed(arg);
+					if(editor_->try_refresh())
 					{
 						_m_draw_spins(buttons::none);
 						return true;
@@ -383,10 +426,11 @@ namespace nana
 
 				bool mouse_move(bool left_button, const ::nana::point& pos)
 				{
-					if (editor_->mouse_move(left_button, pos))
+					editor_->mouse_move(left_button, pos);
+					if(editor_->try_refresh())
 					{
 						editor_->reset_caret();
-						render();
+						_m_draw_spins(spin_stated_);
 						return true;
 					}
 
@@ -421,10 +465,18 @@ namespace nana
 					if (!editor_)
 						return;
 
-					if (API::is_focus_ready(editor_->window_handle()))
-						editor_->text(to_wstring(range_->value()), false);
+					std::wstring text;
+
+					if (API::is_focus_ready(editor_->window_handle()) && editor_->attr().editable)
+						text = to_wstring(range_->value());
 					else
-						editor_->text(to_wstring(modifier_.prefix + range_->value() + modifier_.suffix), false);
+						text = to_wstring(modifier_.prefix + range_->value() + modifier_.suffix);
+
+					if (editor_->text() != text)
+					{
+						editor_->text(text, false);
+						editor_->try_refresh();
+					}
 
 					_m_draw_spins(spin_stated_);
 				}
@@ -514,6 +566,11 @@ namespace nana
 				impl_->attach(wdg, graph);
 			}
 
+			void drawer::detached()
+			{
+				impl_->detach();
+			}
+
 			void drawer::refresh(graph_reference)
 			{
 				impl_->render();
@@ -532,6 +589,12 @@ namespace nana
 				impl_->mouse_wheel(arg.upwards);
 				impl_->editor()->reset_caret();
 				API::dev::lazy_refresh();
+			}
+			
+			void drawer::dbl_click(graph_reference, const arg_mouse& arg)
+			{
+				if (impl_->mouse_button(arg, true))
+					API::dev::lazy_refresh();
 			}
 
 			void drawer::mouse_down(graph_reference, const arg_mouse& arg)
@@ -558,6 +621,13 @@ namespace nana
 				API::dev::lazy_refresh();
 			}
 
+			void drawer::key_ime(graph_reference, const arg_ime& arg)
+			{
+				impl_->editor()->respond_ime(arg);
+				if (impl_->editor()->try_refresh())
+					API::dev::lazy_refresh();
+			}
+
 			void drawer::key_press(graph_reference, const arg_keyboard& arg)
 			{
 				if (impl_->editor()->respond_key(arg))
@@ -570,11 +640,10 @@ namespace nana
 
 			void drawer::key_char(graph_reference, const arg_keyboard& arg)
 			{
-				if (impl_->editor()->respond_char(arg))
+				impl_->editor()->respond_char(arg);
+				if (impl_->editor()->try_refresh())
 				{
-					if (!impl_->value(to_utf8(impl_->editor()->text())))
-						impl_->draw_spins();
-
+					impl_->draw_spins();
 					API::dev::lazy_refresh();
 				}
 			}
@@ -607,7 +676,7 @@ namespace nana
 		internal_scope_guard lock;
 		auto editor = get_drawer_trigger().impl()->editor();
 		if (editor)
-			editor->editable(accept);
+			editor->editable(accept, false);
 	}
 
 	bool spinbox::editable() const
@@ -630,18 +699,48 @@ namespace nana
 		API::refresh_window(handle());
 	}
 
-	void spinbox::range(std::initializer_list<std::string> steps_utf8)
+	void spinbox::range(std::vector<std::string> values)
 	{
 		using namespace drawerbase::spinbox;
-		get_drawer_trigger().impl()->set_range(std::unique_ptr<range_interface>(new range_text(steps_utf8)));
+		get_drawer_trigger().impl()->set_range(std::unique_ptr<range_interface>(new range_text(std::move(values))));
 		API::refresh_window(handle());
 	}
 
-	void spinbox::range(std::initializer_list<std::wstring> steps)
+	std::vector<std::string> spinbox::range_string() const
 	{
-		using namespace drawerbase::spinbox;
-		get_drawer_trigger().impl()->set_range(std::unique_ptr<range_interface>(new range_text(steps)));
-		API::refresh_window(handle());
+		auto range = dynamic_cast<const drawerbase::spinbox::range_text*>(get_drawer_trigger().impl()->range());
+		if (nullptr == range)
+			throw std::runtime_error("the type of spinbox range is not string");
+
+		return range->range();
+	}
+
+	std::pair<int, int> spinbox::range_int() const
+	{
+		auto range = dynamic_cast<const drawerbase::spinbox::range_numeric<int>*>(get_drawer_trigger().impl()->range());
+		if (nullptr == range)
+			throw std::runtime_error("the type of spinbox range is not integer");
+
+		return range->range();
+	}
+
+	std::pair<double, double> spinbox::range_double() const
+	{
+		auto range = dynamic_cast<const drawerbase::spinbox::range_numeric<double>*>(get_drawer_trigger().impl()->range());
+		if (nullptr == range)
+			throw std::runtime_error("the type of spinbox range is not double");
+
+		return range->range();
+	}
+
+	void spinbox::select(bool sel)
+	{
+		internal_scope_guard lock;
+		if (handle())
+		{
+			get_drawer_trigger().impl()->editor()->select(sel);
+			API::refresh_window(*this);
+		}
 	}
 
 	::std::string spinbox::value() const
@@ -657,7 +756,7 @@ namespace nana
 		internal_scope_guard lock;
 		if (handle())
 		{
-			if (get_drawer_trigger().impl()->value(s))
+			if (get_drawer_trigger().impl()->value(s, true))
 				API::refresh_window(handle());
 		}
 	}
@@ -682,7 +781,7 @@ namespace nana
 		modifier(to_utf8(prefix), to_utf8(suffix));
 	}
 
-	auto spinbox::_m_caption() const throw() -> native_string_type
+	auto spinbox::_m_caption() const noexcept -> native_string_type
 	{
 		internal_scope_guard lock;
 		auto editor = get_drawer_trigger().impl()->editor();
@@ -698,7 +797,8 @@ namespace nana
 		if (editor)
 		{
 			editor->text(to_wstring(text), false);
-			API::refresh_window(*this);
+			if (editor->try_refresh())
+				API::update_window(*this);
 		}
 	}
 }//end namespace nana

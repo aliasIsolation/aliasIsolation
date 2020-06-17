@@ -1,13 +1,13 @@
-/*
+/**
  *	Basic Types definition
  *	Nana C++ Library(http://www.nanapro.org)
- *	Copyright(C) 2003-2015 Jinhao(cnjinhao@hotmail.com)
+ *	Copyright(C) 2003-2018 Jinhao(cnjinhao@hotmail.com)
  *
  *	Distributed under the Boost Software License, Version 1.0. 
  *	(See accompanying file LICENSE_1_0.txt or copy at 
  *	http://www.boost.org/LICENSE_1_0.txt)
  *
- *	@file: nana/basic_types.hpp
+ *	@file nana/basic_types.hpp
  */
 
 #ifndef NANA_BASIC_TYPES_HPP
@@ -74,7 +74,7 @@ namespace nana
 
 	namespace detail
 	{
-		struct drawable_impl_type;	//declearation, defined in platform_spec.hpp
+		struct drawable_impl_type;	//declaration, defined in platform_spec.hpp
 	}
 
 	namespace paint
@@ -84,7 +84,7 @@ namespace nana
 
 	enum class mouse_action
 	{
-		begin, normal = begin, hovered, pressed, end
+		begin, normal = begin, normal_captured, hovered, pressed, end
 	};
 
 	enum class element_state
@@ -96,12 +96,6 @@ namespace nana
 		pressed,
 		disabled
 	};
-
-	typedef unsigned scalar_t;
-	typedef unsigned char	uint8_t;
-	typedef unsigned long	uint32_t;
-	typedef unsigned		uint_t;
-	typedef long long long_long_t;
 
 	union pixel_argb_t
 	{
@@ -281,7 +275,7 @@ namespace nana
 		yellow	= 0xFFFF00,
 		yellow_green = 0x9acd32,
 
-		//temporary defintions, these will be replaced by color schema
+		//temporary definitions, these will be replaced by color schema
 		button_face_shadow_start = 0xF5F4F2,
 		button_face_shadow_end = 0xD5D2CA,
 		button_face = 0xD4D0C8 , //,light_cyan
@@ -304,8 +298,7 @@ namespace nana
 		color(color_rgb);
 		color(color_argb);
 		color(color_rgba);
-		color(unsigned red, unsigned green, unsigned blue);
-		color(unsigned red, unsigned green, unsigned blue, double alpha);
+		color(unsigned red, unsigned green, unsigned blue, double alpha = 1.0);
 
 		/// Initializes the color with a CSS-like rgb string.
 		explicit color(std::string css_rgb);
@@ -319,10 +312,14 @@ namespace nana
 		/// @param lightness  in range of [0, 1]
 		color& from_hsl(double hue, double saturation, double lightness);	///< immutable alpha channel
 
-		color blend(const color& bgcolor, bool ignore_bgcolor_alpha) const;
-
-		/// Blends two colors with the specified alpha, and the alpha values that come with these two colors are both ignored. 
-		color blend(const color& bgcolor, double alpha) const;
+		/// Blends color
+		/**
+		 * Returns a color which is blended as this * (1 - fade_rate) + blending_color * fade_rate
+		 * @param blending_color Color to blend
+		 * @param fade_rate Blending rate for blending_color
+		 * @return a blended color
+		 */
+		color blend(const color& blending_color, double fade_rate) const;
 
 		/// Determines whether the color is completely transparent.
 		bool invisible() const;
@@ -428,7 +425,7 @@ namespace nana
 		size(value_type width, value_type height);
 
 		bool empty() const;		///< true if width * height == 0
-		bool is_hit(const point&) const;	///< Assume it is a rectangle at (0,0), and check whether a specified position is in the rectange.
+		bool is_hit(const point&) const;	///< Assume it is a rectangle at (0,0), and check whether a specified position is in the rectangle.
 		size& shift();
 
 		bool operator==(const size& rhs) const;
@@ -455,10 +452,16 @@ namespace nana
 		size dimension() const noexcept;
 		rectangle& dimension(const size&) noexcept;
 
-		rectangle& pare_off(int pixels);	 ///<Pares the specified pixels off the rectangle. It's equal to x += pixels; y + pixels; width -= (pixels << 1); height -= (pixels << 1);
+		/// Pares the specified pixels off the rectangle.
+		/**
+		 * It's equal to x += pixels; y + pixels; width -= (pixels << 1); height -= (pixels << 1);
+		 * @param pixels The number of pixels to be pared. If the number that multiples pixels twice is larger than width/height, the width/height will be zero. If the pixels is a negative number, the width/height is add the number that multiple pixels twice.
+		 * @return The reference of *this.
+		 */
+		rectangle& pare_off(int pixels);
 
-		int right() const;
-		int bottom() const;
+		int right() const noexcept;
+		int bottom() const noexcept;
 		bool is_hit(int x, int y) const;
 		bool is_hit(const point& pos) const;
 		bool empty() const;		///< true if width * height == 0.

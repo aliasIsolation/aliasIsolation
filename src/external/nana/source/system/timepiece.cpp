@@ -2,7 +2,7 @@
 #include <nana/config.hpp>
 #ifdef NANA_WINDOWS
 	#include <windows.h>
-#elif defined(NANA_LINUX) || defined(NANA_MACOS)
+#elif defined(NANA_POSIX)
 	#include <sys/time.h>
 #endif
 
@@ -15,7 +15,7 @@ namespace system
 		{
 #if defined(NANA_WINDOWS)
 			LARGE_INTEGER beg_timestamp;
-#elif defined(NANA_LINUX) || defined(NANA_MACOS)
+#elif defined(NANA_POSIX)
 			struct timeval beg_timestamp;
 #endif
 		};
@@ -24,7 +24,7 @@ namespace system
 			: impl_(new impl_t)
 		{}
 
-		timepiece::timepiece(const volatile timepiece& rhs)
+		timepiece::timepiece(const timepiece& rhs)
 			: impl_(new impl_t(*rhs.impl_))
 		{}
 
@@ -33,7 +33,7 @@ namespace system
 			delete impl_;
 		}
 
-		timepiece & timepiece::operator=(const volatile timepiece & rhs)
+		timepiece & timepiece::operator=(const timepiece & rhs)
 		{
 			if(this != &rhs)
 				*impl_ = *rhs.impl_;
@@ -41,17 +41,17 @@ namespace system
 			return *this;
 		}
 
-		void timepiece::start() volatile
+		void timepiece::start() noexcept
 		{
 #if defined(NANA_WINDOWS)
 			::QueryPerformanceCounter(&impl_->beg_timestamp);
-#elif defined(NANA_LINUX) || defined(NANA_MACOS)
+#elif defined(NANA_POSIX)
 			struct timezone tz;
 			::gettimeofday(&impl_->beg_timestamp, &tz);
 #endif
 		}
 
-		double timepiece::calc() const volatile
+		double timepiece::calc() const noexcept
 		{
 #if defined(NANA_WINDOWS)
 			LARGE_INTEGER li;
@@ -63,7 +63,7 @@ namespace system
 			::QueryPerformanceFrequency(&freq);
 
 			return double(diff)/double(freq.QuadPart) * 1000;
-#elif defined(NANA_LINUX) || defined(NANA_MACOS)
+#elif defined(NANA_POSIX)
 			struct timeval tv;
 			struct timezone tz;
 			gettimeofday(&tv, &tz);

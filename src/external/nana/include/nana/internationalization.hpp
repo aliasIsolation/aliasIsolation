@@ -1,7 +1,7 @@
 /*
  *	An Implementation of i18n
  *	Nana C++ Library(http://www.nanapro.org)
- *	Copyright(C) 2003-2016 Jinhao(cnjinhao@hotmail.com)
+ *	Copyright(C) 2003-2018 Jinhao(cnjinhao@hotmail.com)
  *
  *	Distributed under the Boost Software License, Version 1.0.
  *	(See accompanying file LICENSE_1_0.txt or copy at
@@ -12,11 +12,11 @@
 
 #ifndef NANA_INTERNATIONALIZATION_HPP
 #define NANA_INTERNATIONALIZATION_HPP
-#include "basic_types.hpp"
 #include <vector>
 #include <sstream>
 #include <functional>
 #include <memory>
+#include <nana/deploy.hpp>
 
 namespace nana
 {
@@ -24,6 +24,9 @@ namespace nana
 	{
 		friend class i18n_eval;
 	public:
+		/// Sets a handler to handle a msgid which hasn't been translated.
+		static void set_missing(std::function<void(const std::string& msgid_utf8)> handler);
+
 		void load(const std::string& file);
 		void load_utf8(const std::string& file);
 
@@ -31,11 +34,15 @@ namespace nana
 		::std::string get(std::string msgid_utf8, Args&&... args) const
 		{
 			std::vector<std::string> arg_strs;
+
+#ifdef __cpp_fold_expressions
+			(_m_fetch_args(arg_strs, std::forward<Args>(args)),...);
+#else
 			_m_fetch_args(arg_strs, std::forward<Args>(args)...);
+#endif
 			
-			::std::string msgstr;
-			if (_m_get(msgid_utf8, msgstr))
-				_m_replace_args(msgstr, &arg_strs);
+			auto msgstr = _m_get(std::move(msgid_utf8));
+			_m_replace_args(msgstr, &arg_strs);
 			return msgstr;
 		}
 
@@ -48,20 +55,31 @@ namespace nana
 			return get(msgid_utf8, std::forward<Args>(args)...);
 		}
 	private:
-		bool _m_get(std::string& msgid, ::std::string& msgstr) const;
+		std::string _m_get(std::string&& msgid) const;
 		void _m_replace_args(::std::string& str, std::vector<::std::string> * arg_strs) const;
 
-		void _m_fetch_args(std::vector<std::string>&) const //Termination of _m_fetch_args
-		{}
+#ifndef __cpp_fold_expressions
+		static void _m_fetch_args(std::vector<std::string>&); //Termination of _m_fetch_args
+#endif
+
+		static void _m_fetch_args(std::vector<std::string>& v, const char* arg);
+		static void _m_fetch_args(std::vector<std::string>& v, const std::string& arg);
+		static void _m_fetch_args(std::vector<std::string>& v, std::string& arg);
+		static void _m_fetch_args(std::vector<std::string>& v, std::string&& arg);
+		static void _m_fetch_args(std::vector<std::string>& v, const wchar_t* arg);
+		static void _m_fetch_args(std::vector<std::string>& v, const std::wstring& arg);
+		static void _m_fetch_args(std::vector<std::string>& v, std::wstring& arg);
+		static void _m_fetch_args(std::vector<std::string>& v, std::wstring&& arg);
 
 		template<typename Arg>
-		void _m_fetch_args(std::vector<std::string>& v, Arg&& arg) const
+		static void _m_fetch_args(std::vector<std::string>& v, Arg&& arg)
 		{
-			std::wstringstream ss;
+			std::stringstream ss;
 			ss << arg;
 			v.emplace_back(ss.str());
 		}
 
+#ifndef __cpp_fold_expressions
 		template<typename ...Args>
 		void _m_fetch_args(std::vector<std::string>& v, const char* arg, Args&&... args) const
 		{
@@ -90,6 +108,34 @@ namespace nana
 			_m_fetch_args(v, std::forward<Args>(args)...);
 		}
 
+		template<typename ...Args>
+		void _m_fetch_args(std::vector<std::string>& v, const wchar_t* arg, Args&&... args) const
+		{
+			v.emplace_back(to_utf8(arg));
+			_m_fetch_args(v, std::forward<Args>(args)...);
+		}
+
+		template<typename ...Args>
+		void _m_fetch_args(std::vector<std::string>& v, const std::wstring& arg, Args&&... args) const
+		{
+			v.emplace_back(to_utf8(arg));
+			_m_fetch_args(v, std::forward<Args>(args)...);
+		}
+
+		template<typename ...Args>
+		void _m_fetch_args(std::vector<std::string>& v, std::wstring& arg, Args&&... args) const
+		{
+			v.emplace_back(to_utf8(arg));
+			_m_fetch_args(v, std::forward<Args>(args)...);
+		}
+
+		template<typename ...Args>
+		void _m_fetch_args(std::vector<std::string>& v, std::wstring&& arg, Args&&... args) const
+		{
+			v.emplace_back(to_utf8(arg));
+			_m_fetch_args(v, std::forward<Args>(args)...);
+		}
+
 		template<typename Arg, typename ...Args>
 		void _m_fetch_args(std::vector<std::string>& v, Arg&& arg, Args&&... args) const
 		{
@@ -98,6 +144,7 @@ namespace nana
 			v.emplace_back(ss.str());
 			_m_fetch_args(v, std::forward<Args>(args)...);
 		}
+#endif
 	};//end class internationalization
 
 	class i18n_eval
@@ -142,7 +189,11 @@ namespace nana
 		i18n_eval(std::string msgid_utf8, Args&&... args)
 			: msgid_(std::move(msgid_utf8))
 		{
+#ifdef __cpp_fold_expressions
+			(_m_fetch_args(std::forward<Args>(args)), ...);
+#else
 			_m_fetch_args(std::forward<Args>(args)...);
+#endif
 		}
 
 		i18n_eval(const i18n_eval&);
@@ -155,6 +206,7 @@ namespace nana
 
 		std::string operator()() const;
 	private:
+#ifndef __cpp_fold_expressions
 		void _m_fetch_args(){}	//Termination of _m_fetch_args
 
 		template<typename Arg, typename ...Args>
@@ -163,6 +215,7 @@ namespace nana
 			_m_add_args(std::forward<Arg>(arg));
 			_m_fetch_args(std::forward<Args>(args)...);
 		}
+#endif
 
 		template<typename Arg>
 		void _m_add_args(Arg&& arg)
@@ -186,9 +239,7 @@ namespace nana
 		void _m_add_args(const std::string&);
 		void _m_add_args(std::string&&);
 
-		void _m_add_args(std::wstring&);
 		void _m_add_args(const std::wstring&);
-		void _m_add_args(std::wstring&&);
 	private:
 		std::string msgid_;
 		std::vector<std::unique_ptr<eval_arg>> args_;

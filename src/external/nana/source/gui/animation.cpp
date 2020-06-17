@@ -1,7 +1,7 @@
 /*
  *	An Animation Implementation
  *	Nana C++ Library(http://www.nanapro.org)
- *	Copyright(C) 2003-2015 Jinhao(cnjinhao@hotmail.com)
+ *	Copyright(C) 2003-2018 Jinhao(cnjinhao@hotmail.com)
  *
  *	Distributed under the Boost Software License, Version 1.0.
  *	(See accompanying file LICENSE_1_0.txt or copy at
@@ -180,7 +180,7 @@ namespace nana
 		//struct frameset::impl
 		struct frameset::impl
 		{
-			//Only list whos iterator would not invalided after a insertion.
+			//Only list whose iterator would not be invalidated after an insertion.
 			std::list<frame> frames;
 			std::list<frame>::iterator this_frame;
 			std::size_t pos_in_this_frame{ 0 };
@@ -454,7 +454,7 @@ namespace nana
 				thr->performance_parameter = 0.0;
 				thr->fps = p->fps;
 				thr->interval = 1000.0 / double(p->fps);
-				thr->thread = std::make_shared<std::thread>([this, thr]()
+				thr->thread = std::make_shared<std::thread>([thr]()
 				{
 					nana::system::timepiece tmpiece;
 					while (true)
@@ -569,6 +569,25 @@ namespace nana
 		animation::~animation()
 		{
 			delete impl_;
+		}
+
+		animation::animation(animation&& rhs)
+			: impl_(rhs.impl_)
+		{
+			rhs.impl_ = new impl(23);
+		}
+
+		animation& animation::operator=(animation&& rhs)
+		{
+			if (this != &rhs)
+			{
+				auto imp = new impl{ 23 };
+
+				delete impl_;
+				impl_ = rhs.impl_;
+				rhs.impl_ = imp;
+			}
+			return *this;
 		}
 
 		void animation::push_back(frameset frms)

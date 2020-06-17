@@ -1,7 +1,7 @@
 /*
  *	A textbase class implementation
  *	Nana C++ Library(http://www.nanapro.org)
- *	Copyright(C) 2003-2016 Jinhao(cnjinhao@hotmail.com)
+ *	Copyright(C) 2003-2019 Jinhao(cnjinhao@hotmail.com)
  *
  *	Distributed under the Boost Software License, Version 1.0.
  *	(See accompanying file LICENSE_1_0.txt or copy at
@@ -18,10 +18,11 @@
 #include <nana/charset.hpp>
 #include <nana/basic_types.hpp>
 #include <nana/traits.hpp>
+#include <nana/filesystem/filesystem.hpp>
+
 #include "textbase_export_interface.hpp"
 
 #include <deque>
-#include <memory>
 #include <fstream>
 #include <stdexcept>
 
@@ -36,9 +37,10 @@ namespace skeletons
 		: public ::nana::noncopyable
 	{
 	public:
-		typedef CharT						char_type;
-		typedef std::basic_string<CharT>	string_type;
-		typedef typename string_type::size_type	size_type;
+		using char_type = CharT;
+		using string_type = std::basic_string<CharT>;
+		using size_type = typename string_type::size_type;
+		using path_type = std::filesystem::path;
 
 		textbase()
 		{
@@ -55,21 +57,19 @@ namespace skeletons
 		bool empty() const
 		{
 			return (text_cont_.empty() ||
-					((text_cont_.size() == 1) && (text_cont_[0].empty())));
+				((text_cont_.size() == 1) && text_cont_.front().empty()));
 		}
 
-		bool load(const char* file_utf8)
+		bool load(const path_type& file)
 		{
-			if (!file_utf8)
-				return false;
-
-			std::ifstream ifs(to_osmbstr(file_utf8));
+			std::ifstream ifs{ file.string() };
 			if (!ifs)
 				return false;
 
-			ifs.seekg(0, std::ios::end);
-			std::size_t bytes = static_cast<std::size_t>(ifs.tellg());
-			ifs.seekg(0, std::ios::beg);
+			std::error_code err;
+			auto const bytes = file_size(file, err);
+			if (err)
+				return false;
 
 			if(bytes >= 2)
 			{
@@ -81,7 +81,7 @@ namespace skeletons
 					if(0xBB == ch && 0xBF == ifs.get())
 					{
 						ifs.close();
-						return load(file_utf8, nana::unicode::utf8);
+						return load(file, nana::unicode::utf8);
 					}
 				}
 				else if(0xFF == ch)
@@ -89,16 +89,13 @@ namespace skeletons
 					if(0xFE == ifs.get())
 					{
 						//UTF16,UTF32
-						if(bytes >= 4)
+						if((bytes >= 4) && (ifs.get() == 0 && ifs.get() == 0))
 						{
-							if(ifs.get() == 0 && ifs.get() == 0)
-							{
-								ifs.close();
-								return load(file_utf8, nana::unicode::utf32);
-							}
+							ifs.close();
+							return load(file, nana::unicode::utf32);
 						}
 						ifs.close();
-						return load(file_utf8, nana::unicode::utf16);
+						return load(file, nana::unicode::utf16);
 					}
 				}
 				else if(0xFE == ch)
@@ -107,7 +104,7 @@ namespace skeletons
 					{
 						//UTF16(big-endian)
 						ifs.close();
-						return load(file_utf8, nana::unicode::utf16);
+						return load(file, nana::unicode::utf16);
 					}
 				}
 				else if(0 == ch)
@@ -119,7 +116,7 @@ namespace skeletons
 						{
 							//UTF32(big_endian)
 							ifs.close();
-							return load(file_utf8, nana::unicode::utf32);
+							return load(file, nana::unicode::utf32);
 						}
 					}
 				}
@@ -136,14 +133,14 @@ namespace skeletons
 			{
 				std::getline(ifs, str_mbs);
 				text_cont_.emplace_back(static_cast<string_type&&>(nana::charset{ str_mbs }));
-				if(text_cont_.back().size() > attr_max_.size)
+				if (text_cont_.back().size() > attr_max_.size)
 				{
 					attr_max_.size = text_cont_.back().size();
 					attr_max_.line = text_cont_.size() - 1;
 				}
 			}
 
-			_m_saved(file_utf8);
+			_m_saved(file);
 			return true;
 		}
 
@@ -175,12 +172,9 @@ namespace skeletons
 			}
 		}
 
-		bool load(const char* file_utf8, nana::unicode encoding)
+		bool load(const path_type& file, nana::unicode encoding)
 		{
-			if (!file_utf8)
-				return false;
-
-			std::ifstream ifs(to_osmbstr(file_utf8));
+			std::ifstream ifs{ file.string() };
 
 			if (!ifs)
 				return false;
@@ -219,7 +213,6 @@ namespace skeletons
 				}
 
 				text_cont_.emplace_back(static_cast<string_type&&>(nana::charset{ str, encoding }));
-
 				attr_max_.size = text_cont_.back().size();
 				attr_max_.line = 0;
 			}
@@ -237,22 +230,25 @@ namespace skeletons
 				}
 
 				text_cont_.emplace_back(static_cast<string_type&&>(nana::charset{ str, encoding }));
-				if(text_cont_.back().size() > attr_max_.size)
+				if (text_cont_.back().size() > attr_max_.size)
 				{
 					attr_max_.size = text_cont_.back().size();
 					attr_max_.line = text_cont_.size() - 1;
 				}
 			}
 
-			_m_saved(file_utf8);
+			_m_saved(file);
 			return true;
 		}
 
-		void store(std::string fs, bool is_unicode, ::nana::unicode encoding) const
+		void store(const path_type& filename, bool is_unicode, ::nana::unicode encoding) const
 		{
-			std::ofstream ofs(to_osmbstr(fs), std::ios::binary);
+			std::ofstream ofs(filename.string(), std::ios::binary);
 			if(ofs && text_cont_.size())
 			{
+				auto i = text_cont_.cbegin();
+				auto const count = text_cont_.size() - 1;
+
 				std::string last_mbs;
 
 				if (is_unicode)
@@ -272,34 +268,51 @@ namespace skeletons
 					if (bytes)
 						ofs.write(le_boms[static_cast<int>(encoding)], bytes);
 
-					if (text_cont_.size() > 1)
+					for (std::size_t pos = 0; pos < count; ++pos)
 					{
-						std::string mbs;
-						for (auto i = text_cont_.cbegin(), end = text_cont_.cend() - 1; i != end; ++i)
-						{
-							std::string(nana::charset(*i).to_bytes(encoding)).swap(mbs);
-							mbs += "\r\n";
-							ofs.write(mbs.c_str(), static_cast<std::streamsize>(mbs.size()));
-						}
+						auto mbs = nana::charset(*(i++)).to_bytes(encoding);
+						ofs.write(mbs.c_str(), static_cast<std::streamsize>(mbs.size()));
+						ofs.write("\r\n", 2);
 					}
 
 					last_mbs = nana::charset(text_cont_.back()).to_bytes(encoding);
 				}
 				else
 				{
-					if (text_cont_.size() > 1)
+					for (std::size_t pos = 0; pos < count; ++pos)
 					{
-						for (auto i = text_cont_.cbegin(), end = text_cont_.cend() - 1; i != end; ++i)
-						{
-							std::string mbs = nana::charset(*i);
-							ofs.write(mbs.c_str(), mbs.size());
-							ofs.write("\r\n", 2);
-						}
+						std::string mbs = nana::charset(*(i++));
+						ofs.write(mbs.c_str(), mbs.size());
+						ofs.write("\r\n", 2);
 					}
 					last_mbs = nana::charset(text_cont_.back());
 				}
+
 				ofs.write(last_mbs.c_str(), static_cast<std::streamsize>(last_mbs.size()));
-				_m_saved(std::move(fs));
+				_m_saved(filename);
+			}
+		}
+
+		//Triggers the text_changed event.
+		//It is exposed for outter classes. For a outter class(eg. text_editor), a changing text content operation
+		//may contains multiple textbase operations, therefore, the outter class determines when an event should be triggered.
+		//
+		//Addtional, using text_changed() method, it is possible to allow a outter class performing some updating operations
+		//before triggering text_changed event.
+		void text_changed()
+		{
+			if (!changed_)
+			{
+				_m_emit_first_change();
+				changed_ = true;
+			}
+
+			if (edited_)
+			{
+				if (evt_agent_)
+					evt_agent_->text_changed();
+
+				edited_ = false;
 			}
 		}
 
@@ -310,9 +323,8 @@ namespace skeletons
 
 		const string_type& getline(size_type pos) const
 		{
-			if(pos < text_cont_.size())
+			if (pos < text_cont_.size())
 				return text_cont_[pos];
-
 			return nullstr_;
 		}
 
@@ -323,23 +335,23 @@ namespace skeletons
 	public:
 		void replace(size_type pos, string_type && text)
 		{
-			if(text_cont_.size() <= pos)
+			if (text_cont_.size() <= pos)
 			{
 				text_cont_.emplace_back(std::move(text));
 				pos = text_cont_.size() - 1;
 			}
 			else
-				text_cont_[pos].swap(text);
+				_m_at(pos).swap(text);
 
 			_m_make_max(pos);
-			_m_edited();
+			edited_ = true;
 		}
 
 		void insert(upoint pos, string_type && str)
 		{
 			if(pos.y < text_cont_.size())
 			{
-				string_type& lnstr = text_cont_[pos.y];
+				string_type& lnstr = _m_at(pos.y);
 
 				if(pos.x < lnstr.size())
 					lnstr.insert(pos.x, str);
@@ -353,25 +365,25 @@ namespace skeletons
 			}
 
 			_m_make_max(pos.y);
-			_m_edited();
+			edited_ = true;
 		}
 
 		void insertln(size_type pos, string_type&& str)
 		{
-			if(pos < text_cont_.size())
-				text_cont_.emplace(text_cont_.begin() + pos, std::move(str));
+			if (pos < text_cont_.size())
+				text_cont_.emplace(_m_iat(pos), std::move(str));
 			else
 				text_cont_.emplace_back(std::move(str));
 
 			_m_make_max(pos);
-			_m_edited();
+			edited_ = true;
 		}
 
 		void erase(size_type line, size_type pos, size_type count)
 		{
 			if (line < text_cont_.size())
 			{
-				string_type& lnstr = text_cont_[line];
+				string_type& lnstr = _m_at(line);
 				if ((pos == 0) && (count >= lnstr.size()))
 					lnstr.clear();
 				else
@@ -380,7 +392,7 @@ namespace skeletons
 				if (attr_max_.line == line)
 					_m_scan_for_max();
 
-				_m_edited();
+				edited_ = true;
 			}
 		}
 
@@ -393,14 +405,14 @@ namespace skeletons
 			if (pos + n > text_cont_.size())
 				n = text_cont_.size() - pos;
 
-			text_cont_.erase(text_cont_.begin() + pos, text_cont_.begin() + (pos + n));
+			text_cont_.erase(_m_iat(pos), _m_iat(pos + n));
 
 			if (pos <= attr_max_.line && attr_max_.line < pos + n)
 				_m_scan_for_max();
 			else if (pos < attr_max_.line)
 				attr_max_.line -= n;
 
-			_m_edited();
+			edited_ = true;
 			return true;
 		}
 
@@ -408,26 +420,32 @@ namespace skeletons
 		{
 			text_cont_.clear();
 			attr_max_.reset();
-			text_cont_.emplace_back();	//text_cont_ must not be empty
+			text_cont_.emplace_back(); //text_cont_ must not be empty
 
-			_m_saved(std::string());
+			_m_saved({});
 		}
 
 		void merge(size_type pos)
 		{
 			if(pos + 1 < text_cont_.size())
 			{
-				text_cont_[pos] += text_cont_[pos + 1];
-				text_cont_.erase(text_cont_.begin() + (pos + 1));
+				auto i = _m_iat(pos + 1);
+				_m_at(pos) += *i;
+
+				text_cont_.erase(i);
 				_m_make_max(pos);
+
+				//If the maxline is behind the pos line,
+				//decrease the maxline. Because a line between maxline and pos line
+				//has been deleted.
 				if(pos < attr_max_.line)
 					--attr_max_.line;
 
-				_m_edited();
+				edited_ = true;
 			}
 		}
 
-		const std::string& filename() const
+		const path_type& filename() const
 		{
 			return filename_;
 		}
@@ -437,30 +455,32 @@ namespace skeletons
 			return changed_;
 		}
 
-		void edited_reset()
+		void reset_status(bool remain_saved_filename)
 		{
-			changed_ = false;
-		}
+			if(!remain_saved_filename)
+				filename_.clear();
 
-		void reset()
-		{
-			filename_.clear();
 			changed_ = false;
 		}
 
 		bool saved() const
 		{
-			return ! not_saved();
-		}
-
-		bool not_saved() const
-		{
-			return edited() || filename_.empty();
+			return !(changed_ || filename_.empty());
 		}
 	private:
+		string_type& _m_at(size_type pos)
+		{
+			return *_m_iat(pos);
+		}
+
+		typename std::deque<string_type>::iterator _m_iat(size_type pos)
+		{
+			return text_cont_.begin() + pos;
+		}
+
 		void _m_make_max(std::size_t pos)
 		{
-			const string_type& str = text_cont_[pos];
+			const string_type& str = _m_at(pos);
 			if(str.size() > attr_max_.size)
 			{
 				attr_max_.size = str.size();
@@ -470,61 +490,40 @@ namespace skeletons
 
 		void _m_scan_for_max()
 		{
-			attr_max_.size = 0;
-			std::size_t n = 0;
-			for(auto & s : text_cont_)
-			{
-				if(s.size() > attr_max_.size)
-				{
-					attr_max_.size = s.size();
-					attr_max_.line = n;
-				}
-				++n;
-			}
+			attr_max_.reset();
+			for (std::size_t i = 0; i < text_cont_.size(); ++i)
+				_m_make_max(i);
 		}
 
-		void _m_first_change() const
+		void _m_emit_first_change() const
 		{
 			if (evt_agent_)
 				evt_agent_->first_change();
 		}
 
-		void _m_saved(std::string && filename) const
+		void _m_saved(const path_type& filename) const
 		{
-			if(filename_ != filename)
+			if((filename_ != filename) || changed_)
 			{
-				filename_ = std::move(filename);
-				_m_first_change();
+				filename_ = filename;
+				_m_emit_first_change();
 			}
-			else if(changed_)
-				_m_first_change();
 
 			changed_ = false;
 		}
-
-		void _m_edited()
-		{
-			if(!changed_)
-			{
-				_m_first_change();
-				changed_ = true;
-			}
-
-			if (evt_agent_)
-				evt_agent_->text_changed();
-		}
 	private:
-		std::deque<string_type>	text_cont_;
+		std::deque<string_type> text_cont_;
 		textbase_event_agent_interface* evt_agent_{ nullptr };
 
-		mutable bool			changed_{ false };
-		mutable std::string	filename_;	//A string for the saved filename.
+		mutable bool		changed_{ false };
+		mutable bool		edited_{ false };
+		mutable path_type filename_;	///< The saved filename
 		const string_type nullstr_;
 
 		struct attr_max
 		{
-			std::size_t line;
-			std::size_t size;
+			std::size_t line; ///< The line number of max line
+			std::size_t size; ///< The number of characters in max line
 
 			void reset()
 			{

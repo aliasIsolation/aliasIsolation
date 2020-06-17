@@ -1,5 +1,6 @@
 
 #include <nana/gui/widgets/slider.hpp>
+#include <nana/paint/pixel_buffer.hpp>
 #include <cstring>	//memcpy
 
 namespace nana
@@ -79,7 +80,7 @@ namespace nana
 					}
 
 					color rgb = schm.color_slider;
-					if (mouse_action::normal != mouse_act)
+					if (mouse_action::normal != mouse_act && mouse_action::normal_captured != mouse_act)
 						rgb = schm.color_slider_highlighted;
 
 					graph.frame_rectangle(area, rgb + static_cast<color_rgb>(0x0d0d0d), 1);
@@ -127,7 +128,7 @@ namespace nana
 						arrow_pos = data.position - arrow_weight;
 					}
 
-					graph_vern.blend(rectangle{ label_size }, graph, label_pos, 0.5);
+					graph.blend(rectangle{ label_pos, label_size }, graph_vern, {}, 0.5);
 
 
 					unsigned arrow_color = 0x7F | schm.color_vernier.get_color().argb().value;
@@ -209,8 +210,7 @@ namespace nana
 						arrow_pos = data.position;
 					}
 
-					graph_vern.blend(rectangle{ label_size }, graph, label_pos, 0.5);
-
+					graph.blend(rectangle{ label_pos, label_size }, graph_vern, {}, 0.5);
 
 					unsigned arrow_color = 0x7F | schm.color_vernier.get_color().argb().value;
 					for (auto & color : arrow_pxbuf)
@@ -245,7 +245,7 @@ namespace nana
 				};
 			public:
 				enum class parts{none, bar, slider};
-				
+
 				using graph_reference = drawer_trigger::graph_reference;
 
 				model()
@@ -256,7 +256,7 @@ namespace nana
 					proto_.renderer = pat::cloneable<renderer_interface>{interior_renderer{}};
 
 					attr_.seek_dir = seekdir::bilateral;
-					
+
 					attr_.is_draw_adorn = false;
 					attr_.vcur = 0;
 					attr_.vmax = 10;
@@ -299,7 +299,7 @@ namespace nana
 				{
 					if(!graph.size().empty())
 					{
-						proto_.renderer->background(other_.wd, graph, (bground_mode::basic == API::effects_bground_mode(other_.wd)), other_.widget->scheme());
+						proto_.renderer->background(other_.wd, graph, API::dev::copy_transparent_background(other_.wd, graph), other_.widget->scheme());
 						_m_draw_elements(graph);
 					}
 				}
@@ -361,7 +361,7 @@ namespace nana
 				parts seek_where(::nana::point pos) const
 				{
 					nana::rectangle r = _m_bar_area();
-					
+
 					if (attr_.slider.vert)
 					{
 						std::swap(pos.x, pos.y);
@@ -373,7 +373,7 @@ namespace nana
 						return parts::slider;
 
 					sdpos = static_cast<int>(attr_.slider.weight) / 2;
-					
+
 					if (sdpos <= pos.x && pos.x < sdpos + static_cast<int>(r.width))
 					{
 						if(pos.y < r.bottom())
@@ -446,7 +446,7 @@ namespace nana
 				bool move_slider(const ::nana::point& pos)
 				{
 					int adorn_pos = slider_state_.snap_pos + (attr_.slider.vert ? pos.y : pos.x) - slider_state_.refpos.x;
-					
+
 					if (adorn_pos > 0)
 					{
 						int range = static_cast<int>(_m_range());
@@ -482,7 +482,7 @@ namespace nana
 					attr_.adorn_pos = xpos;
 					attr_.is_draw_adorn = true;
 
-					if (::nana::mouse_action::normal == slider_state_.mouse_state)
+					if (mouse_action::normal == slider_state_.mouse_state || mouse_action::normal_captured == slider_state_.mouse_state)
 						slider_state_.mouse_state = ::nana::mouse_action::hovered;
 
 					return (adorn_pos != static_cast<int>(xpos));
@@ -524,14 +524,16 @@ namespace nana
 					if((::nana::mouse_action::pressed == slider_state_.mouse_state) && (API::capture_window() == this->other_.wd))
 						return false;
 
+					auto state_changed = ((slider_state_.mouse_state != ::nana::mouse_action::normal)
+										|| (attr_.adorn_pos != attr_.slider.pos));
+
 					slider_state_.mouse_state = ::nana::mouse_action::normal;
 					attr_.is_draw_adorn = false;
-					if(attr_.adorn_pos != attr_.slider.pos)
-					{
-						attr_.adorn_pos = attr_.slider.pos;
-						return true;
-					}
-					return false;
+
+					attr_.adorn_pos = attr_.slider.pos;
+					slider_state_.mouse_state = ::nana::mouse_action::normal;
+
+					return state_changed;
 				}
 
 			private:
@@ -609,7 +611,7 @@ namespace nana
 					if (attr_.slider.vert)
 						attr_.slider.pos = range - attr_.slider.pos;
 
-					if(::nana::mouse_action::normal == slider_state_.mouse_state)
+					if(mouse_action::normal == slider_state_.mouse_state || mouse_action::normal_captured == slider_state_.mouse_state)
 						attr_.adorn_pos = attr_.slider.pos;
 				}
 
@@ -645,7 +647,6 @@ namespace nana
 					{
 						adorn.bound.x = static_cast<int>(attr_.adorn_pos + attr_.slider.border_weight + bar.area.y);
 						adorn.bound.y = static_cast<int>(graph.height()) - static_cast<int>(attr_.slider.border_weight + bar.area.y);
-						//adorn.bound.x = 
 					}
 					else
 					{
@@ -690,7 +691,7 @@ namespace nana
 					window wd;
 					nana::slider * widget;
 				}other_;
-				
+
 				struct prototype_tag
 				{
 					pat::cloneable<slider::renderer_interface> renderer;
@@ -757,6 +758,10 @@ namespace nana
 
 				void trigger::mouse_move(graph_reference graph, const arg_mouse& arg)
 				{
+					// check if slider is disabled
+					if(!API::get_widget(arg.window_handle)->enabled())
+						return;		// do nothing
+
 					bool updated = false;
 					if (model_ptr_->if_trace_slider())
 					{
@@ -799,7 +804,7 @@ namespace nana
 
 	//class slider
 		slider::slider(){}
-		
+
 		slider::slider(window wd, bool visible)
 		{
 			create(wd, rectangle(), visible);
@@ -839,10 +844,14 @@ namespace nana
 			return get_drawer_trigger().get_model()->attribute().vmax;
 		}
 
-		void slider::value(unsigned v)
+		void slider::value(int v)
 		{
 			if(handle())
 			{
+			    // limit to positive values, vcur expects unsigned
+			    if( v < 0 )
+                    v = 0;
+
 				if(get_drawer_trigger().get_model()->vcur(v))
 					API::refresh_window(handle());
 			}
@@ -897,7 +906,7 @@ namespace nana
 
 		bool slider::transparent() const
 		{
-			return (bground_mode::basic == API::effects_bground_mode(*this));
+			return API::is_transparent_background(*this);
 		}
 	//end class slider
 }//end namespace nana

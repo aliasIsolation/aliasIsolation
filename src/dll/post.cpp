@@ -32,11 +32,14 @@ namespace
 // For example, Fraps nukes the Present hook of Cinematic Tools.
 extern "C" __declspec(dllexport) void __cdecl aliasIsolation_hookableOverlayRender(ID3D11Device* device, ID3D11DeviceContext* context)
 {
+// We can't compile inline assembly under a 64-bit operating system.
+#ifndef _WIN64
 	__asm {
 		nop; nop; nop; nop;
 		nop; nop; nop; nop;
 		nop; nop; nop; nop;
 	}
+#endif
 }
 
 ID3D11Buffer* createConstantBuffer(unsigned sizeBytes)

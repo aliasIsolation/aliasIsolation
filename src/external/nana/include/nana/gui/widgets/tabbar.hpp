@@ -1,7 +1,7 @@
 /**
  *	A Tabbar implementation
  *	Nana C++ Library(http://www.nanapro.org)
- *	Copyright(C) 2003-2016 Jinhao(cnjinhao@hotmail.com)
+ *	Copyright(C) 2003-2018 Jinhao(cnjinhao@hotmail.com)
  *
  *	Distributed under the Boost Software License, Version 1.0.
  *	(See accompanying file LICENSE_1_0.txt or copy at
@@ -29,22 +29,60 @@ namespace nana
 	{
 		tabbar<T> & widget;
 		T & value;
+		std::size_t item_pos;						///< position of the item
 
-		arg_tabbar(tabbar<T>& wdg, T& v)
-			: widget(wdg), value{ v }
+		arg_tabbar(tabbar<T>& wdg, T& v, std::size_t p)
+			: widget(wdg), value{ v }, item_pos(p)
 		{}
+	};
+
+	template<typename T>
+	struct arg_tabbar_click : public arg_tabbar<T>
+	{
+		arg_tabbar_click(tabbar<T>& wdg, T& v, std::size_t p)
+			: arg_tabbar<T>({wdg, v, p})
+		{}
+
+		bool left_button = false;					///< true if mouse left button is pressed
+		bool mid_button = false;					///< true if mouse middle button is pressed
+		bool right_button = false;					///< true if mouse right button is pressed
+	};
+
+	template<typename T>
+	struct arg_tabbar_mouse
+		: public arg_mouse
+	{
+		arg_tabbar_mouse(const arg_mouse& arg, tabbar<T>& wdg, T& v, std::size_t p)
+			: arg_mouse{ arg }, widget(wdg), value{ v }, item_pos(p)
+		{}
+
+		tabbar<T> & widget;
+		T & value;
+		std::size_t item_pos;						///< position of the item
+	};
+
+	template<typename T>
+	struct arg_tabbar_adding
+		: public event_arg
+	{
+		arg_tabbar_adding(tabbar<T>& wdg, std::size_t p)
+			: widget(wdg), where(p)
+		{}
+
+		tabbar<T> & widget;
+		mutable bool add = true;					///< determines whether to add the item
+		std::size_t where;							///< position where to add the item
 	};
 
 	template<typename T>
 	struct arg_tabbar_removed : public arg_tabbar<T>
 	{
-		arg_tabbar_removed(tabbar<T>& wdg, T& v)
-			: arg_tabbar<T>({wdg, v})
+		arg_tabbar_removed(tabbar<T>& wdg, T& v, std::size_t p)
+			: arg_tabbar<T>({wdg, v, p})
 		{}
 
-		bool remove = true;					///< determines whether to remove the item
-		bool close_attach_window = true;	///< determines whether to close the attached window. It is ignored if remove is false
-
+		mutable bool remove = true;					///< determines whether to remove the item
+		mutable bool close_attach_window = true;	///< determines whether to close the attached window. It is ignored if remove is false
 	};
 
 	namespace drawerbase
@@ -57,7 +95,9 @@ namespace nana
 			{
 				using value_type = T;
 
+				basic_event<arg_tabbar_adding<value_type>> adding;
 				basic_event<arg_tabbar<value_type>> added;
+				basic_event<arg_tabbar_mouse<value_type>> tab_click;
 				basic_event<arg_tabbar<value_type>> activated;
 				basic_event<arg_tabbar_removed<value_type>> removed;
 			};
@@ -66,7 +106,9 @@ namespace nana
 			{
 			public:
 				virtual ~event_agent_interface() = default;
+				virtual bool adding(std::size_t) = 0;
 				virtual void added(std::size_t) = 0;
+				virtual bool click(const arg_mouse&, std::size_t) = 0;
 				virtual void activated(std::size_t) = 0;
 				virtual bool removed(std::size_t, bool & close_attached) = 0;
 			};
@@ -108,26 +150,40 @@ namespace nana
 					: tabbar_(tb), drawer_trigger_(dtr)
 				{}
 
+				bool adding(std::size_t pos) override
+				{
+					::nana::arg_tabbar_adding<T> arg_ta(tabbar_, pos);
+					tabbar_.events().adding.emit(arg_ta, tabbar_);
+					return arg_ta.add;
+				}
+
 				void added(std::size_t pos) override
 				{
 					if(pos != npos)
 					{
 						drawer_trigger_.at_no_bound_check(pos) = T();
-						tabbar_.events().added.emit(arg_tabbar({ tabbar_, tabbar_[pos] }), tabbar_);
+						tabbar_.events().added.emit(arg_tabbar({ tabbar_, tabbar_[pos], pos }), tabbar_);
 					}
+				}
+
+				bool click(const arg_mouse& arg, std::size_t pos) override
+				{
+					::nana::arg_tabbar_mouse<T> arg_tm(arg, tabbar_, tabbar_[pos], pos);
+					tabbar_.events().tab_click.emit(arg_tm, tabbar_);
+					return arg_tm.propagation_stopped();
 				}
 
 				void activated(std::size_t pos) override
 				{
 					if(pos != npos)
-						tabbar_.events().activated.emit(arg_tabbar({ tabbar_, tabbar_[pos]}), tabbar_);
+						tabbar_.events().activated.emit(arg_tabbar({ tabbar_, tabbar_[pos], pos}), tabbar_);
 				}
 
 				bool removed(std::size_t pos, bool & close_attach) override
 				{
-					if (pos != npos)
+					if(pos != npos)
 					{
-						::nana::arg_tabbar_removed<T> arg(tabbar_, tabbar_[pos]);
+						::nana::arg_tabbar_removed<T> arg(tabbar_, tabbar_[pos], pos);
 						tabbar_.events().removed.emit(arg, tabbar_);
 						close_attach = arg.close_attach_window;
 						return arg.remove;
@@ -237,9 +293,9 @@ namespace nana
 			return this->get_drawer_trigger().activated();
 		}
 
-		value_type & at(std::size_t pos) const        /// Returns pos'th element
+		value_type const & at(std::size_t pos) const        /// Returns pos'th element
 		{
-			return static_cast<value_type&>(this->get_drawer_trigger().at(pos));
+			return any_cast<value_type&>(this->get_drawer_trigger().at(pos));
 		}
 
 		void close_fly(bool fly)                    /// Draw or not a close button in each tab.
@@ -248,7 +304,7 @@ namespace nana
 				API::refresh_window(this->handle());
 		}
 
-		pat::cloneable<item_renderer>& renderer() const
+		const pat::cloneable<item_renderer>& renderer() const
 		{
 			return this->get_drawer_trigger().ext_renderer();
 		}
@@ -272,7 +328,7 @@ namespace nana
 		tabbar& append(std::wstring text, window attach_wd, value_type value = {})
 		{
 			if (attach_wd && API::empty_window(attach_wd))
-				throw std::invalid_argument("Appening a tab to a tabbar - error: tabbar.attach: invalid window handle");
+				throw std::invalid_argument("Appending a tab to a tabbar - error: tabbar.attach: invalid window handle");
 
 			this->get_drawer_trigger().insert(::nana::npos, to_nstring(std::move(text)), std::move(value));
 			if (attach_wd)
@@ -293,7 +349,7 @@ namespace nana
 			if (pos > length())
 				throw std::out_of_range("tabbar::insert invalid position");
 
-			this->get_drawer_trigger().insert(pos, to_nstring(text), std::move(value));
+			this->get_drawer_trigger().insert(pos, to_nstring(std::move(text)), std::move(value));
 			API::update_window(*this);
 		}
 
@@ -353,7 +409,7 @@ namespace nana
 			this->get_drawer_trigger().text(pos, to_nstring(str));
 		}
 
-		std::string text(std::size_t pos) const /// Returns a title of a specified item, If pos is invalid, the method trhows a std::out_of_range object.
+		std::string text(std::size_t pos) const /// Returns a title of a specified item, If pos is invalid, the method throws a std::out_of_range object.
 		{
 			return to_utf8(this->get_drawer_trigger().text(pos));
 		}
@@ -384,7 +440,7 @@ namespace nana
 					driver();
 					~driver();
 
-					model* get_model() const throw();
+					model* get_model() const noexcept;
 				private:
 					//Overrides drawer_trigger's method
 					void attached(widget_reference, graph_reference)	override;

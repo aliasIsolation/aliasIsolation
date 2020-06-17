@@ -14,28 +14,28 @@
 #if defined(NANA_WINDOWS)
 	#include <windows.h>
 #endif
-#include <cassert>
+#include <array>
 
 namespace {
 	std::tm localtime()
 	{
 #if defined(NANA_WINDOWS) && !defined(NANA_MINGW)
-		time_t t;
-		::time(&t);
+		std::time_t t = std::time(nullptr);
 		std::tm tm;
-		if(localtime_s(&tm, &t) != 0)
-			assert(false);
+		if (localtime_s(&tm, &t) != 0)
+			throw std::runtime_error("invalid local time");
 
 		return tm;
 #else
 		time_t t = std::time(nullptr);
 		struct tm * tm_addr = std::localtime(&t);
-		assert(tm_addr);
-		
+		if(nullptr == tm_addr)
+			throw std::runtime_error("invalid local time");
+
 		return *tm_addr;
 #endif
 	}
-	
+
 	::nana::date::value to_dateval(const std::tm& t)
 	{
 		return {static_cast<unsigned>(t.tm_year + 1900), static_cast<unsigned>(t.tm_mon + 1), static_cast<unsigned>(t.tm_mday)};
@@ -50,7 +50,7 @@ namespace {
 
 namespace nana
 {
-	//class date		
+	//class date
 		void date::set(const std::tm& t)
 		{
 			value_ = to_dateval(t);
@@ -239,18 +239,20 @@ namespace nana
 			return days + d;
 		}
 
-		unsigned date::month_days(unsigned year, unsigned month)
+		unsigned date::month_days(const unsigned year, const unsigned month)
 		{
-			unsigned num[] = {31, 0, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
-			if(month != 2)
-				return num[month - 1];
+			if (month != 2)
+			{
+				constexpr std::array<unsigned, 12> days_in_month = { 31, 0, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+				return days_in_month[month - 1];
+			}
 
 			if(((year % 4 == 0) && (year % 100)) || (year % 400 == 0))
 				return 29;
 			return 28;
 		}
 
-		unsigned date::year_days(unsigned year)
+		unsigned date::year_days(const unsigned year)
 		{
 			if(((year % 4 == 0) && (year % 100)) || (year % 400 == 0))
 				return 366;

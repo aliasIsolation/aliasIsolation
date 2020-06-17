@@ -1,7 +1,7 @@
 /**
  *	A Character Encoding Set Implementation
  *	Nana C++ Library(http://www.nanapro.org)
- *	Copyright(C) 2003-2016 Jinhao(cnjinhao@hotmail.com)
+ *	Copyright(C) 2003-2019 Jinhao(cnjinhao@hotmail.com)
  *
  *	Distributed under the Boost Software License, Version 1.0.
  *	(See accompanying file LICENSE_1_0.txt or copy at
@@ -12,6 +12,7 @@
  *	@contributions
  *		UTF16 4-byte decoding issue by Renke Yan.
  *		Pr0curo(pr#98)
+ *		crillion
  */
 
 #include <nana/charset.hpp>
@@ -21,6 +22,7 @@
 #include <clocale>
 #include <cstring>	//Added by Pr0curo(pr#98)
 #include <memory>
+#include <locale>	//Added by crillion
 
 //GCC 4.7.0 does not implement the <codecvt> and codecvt_utfx classes
 #ifndef STD_CODECVT_NOT_SUPPORTED
@@ -40,7 +42,7 @@ namespace nana
 		{
 			auto ustr = reinterpret_cast<const unsigned char*>(text);
 			auto const end = ustr + std::strlen(text);
-			
+
 			for (unsigned i = 0; i != pos; ++i)
 			{
 				const auto uch = *ustr;
@@ -53,7 +55,7 @@ namespace nana
 				if (uch < 0xC0)        // use police ?
 					return nullptr;
 
-				if ((uch < 0xE0) && (ustr + 1 < end)) //? *(ustr + 1) < 0xE0 
+				if ((uch < 0xE0) && (ustr + 1 < end)) //? *(ustr + 1) < 0xE0
 					ustr += 2;
 				else if (uch < 0xF0 && (ustr + 2 <= end))
 					ustr += 3;
@@ -215,7 +217,7 @@ namespace nana
 	}
 
 	namespace detail
-	{   
+	{
 		/// candidate to be more general??
 		class locale_initializer
 		{
@@ -224,7 +226,7 @@ namespace nana
 			{
 				static bool initialized = false;
 				if (initialized) return;
-				
+
 				initialized = true;
 				//Only set the C library locale
 				std::setlocale(LC_CTYPE, "");
@@ -232,7 +234,7 @@ namespace nana
 		};
 
 		/// convert wchar C string from ? ANSI code page CP_ACP (windows) or LC_CTYPE c locale (-nix) into utf8 std::string
-		bool wc2mb(std::string& mbstr, const wchar_t * s)
+		static bool wc2mb(std::string& mbstr, const wchar_t * s)
 		{
 			if(nullptr == s || *s == 0)
 			{
@@ -243,8 +245,12 @@ namespace nana
 			int bytes = ::WideCharToMultiByte(CP_ACP, 0, s, -1, 0, 0, 0, 0);
 			if(bytes > 1)
 			{
-				mbstr.resize(bytes - 1);
-				::WideCharToMultiByte(CP_ACP, 0, s, -1, &(mbstr[0]), bytes - 1, 0, 0);
+				// the bytes is the length of the string with null character.
+				mbstr.resize(bytes);
+				::WideCharToMultiByte(CP_ACP, 0, s, -1, &(mbstr[0]), bytes, 0, 0);
+
+				//Remove the null character written by WideCharToMultiByte
+				mbstr.pop_back();
 			}
 			return true;
 #else
@@ -266,7 +272,7 @@ namespace nana
 		}
 
 		/// convert a char C-string from The system default Windows ANSI code page CP_ACP or from LC_CTYPE c locale (-nix) into utf16 std::wstring
-		bool mb2wc(std::wstring& wcstr, const char* s)
+		static bool mb2wc(std::wstring& wcstr, const char* s)
 		{
 			if(nullptr == s || *s == 0)
 			{
@@ -277,8 +283,12 @@ namespace nana
 			int chars = ::MultiByteToWideChar(CP_ACP, 0, s, -1, 0, 0);
 			if(chars > 1)
 			{
-				wcstr.resize(chars - 1);
-				::MultiByteToWideChar(CP_ACP, 0, s, -1, &wcstr[0], chars - 1);
+				// the length of the string with null character.
+				wcstr.resize(chars);
+				::MultiByteToWideChar(CP_ACP, 0, s, -1, &wcstr[0], chars);
+
+				// remove the null character written by MultiByteToWideChar
+				wcstr.pop_back();
 			}
 #else
 			locale_initializer::init();
@@ -286,7 +296,7 @@ namespace nana
 			std::size_t len = std::mbsrtowcs(nullptr, &s, 0, &mbstate);
 			if(len == static_cast<std::size_t>(-1))
 				return false;
-			
+
 			if(len)
 			{
 				wcstr.resize(len);
@@ -320,7 +330,7 @@ namespace nana
 			std::size_t len = std::mbsrtowcs(nullptr, &s, 0, &mbstate);
 			if(len == static_cast<std::size_t>(-1))
 				return false;
-			
+
 			if(len)
 			{
 				wcstr.resize(sizeof(wchar_t) * len);
@@ -347,7 +357,7 @@ namespace nana
 			virtual std::wstring&& wstr_move() = 0;
 		};
 
-		/// playing with the idea - we need a mechanisme to set a user selected police - Testing an abtract interphase
+		/// playing with the idea - we need a mechanism to set a user selected police - Testing an abstract interface
 		struct encoding_error_police
 		{
 			virtual unsigned long next_code_point(const unsigned char*& current_code_unit, const unsigned char* end) = 0;
@@ -365,7 +375,7 @@ namespace nana
 
 		};
 
-		/// 
+		///
 		struct utf8_error_police_def_char : public encoding_error_police
 		{
 			static unsigned long def_error_mark ;
@@ -384,13 +394,13 @@ namespace nana
 
 		unsigned long utf8_error_police_def_char::def_error_mark{ '*' };
 
-		///  
+		///
 		struct utf8_error_police_throw : public encoding_error_police
 		{
 			unsigned long next_code_point(const unsigned char*& current_code_unit, const unsigned char* end) override
 			{
 				//utf8_Error::use_throw = true;
-				utf8_Error(std::string("The text is not encoded in UTF8: ") + 
+				utf8_Error(std::string("The text is not encoded in UTF8: ") +
 					reinterpret_cast<const char*>( current_code_unit) ).emit();;
 				current_code_unit = end;
 				return 0;
@@ -482,7 +492,7 @@ namespace nana
 			virtual std::string&& str_move()
 			{
 				if(is_unicode_)
-					data_ = std::move(str());
+					data_ = str();
 				return std::move(data_);
 			}
 
@@ -504,6 +514,8 @@ namespace nana
 								std::u32string u32str = std::wstring_convert<std::codecvt_utf8<char32_t>, char32_t>().from_bytes(data_);
 								return std::string(reinterpret_cast<const char*>(u32str.c_str()), u32str.size() * sizeof(char32_t));
 							}
+						default:
+							break;	//no conversion
 						}
 						break;
 					case unicode::utf16:
@@ -518,6 +530,8 @@ namespace nana
 								std::u32string u32str = std::wstring_convert<std::codecvt_utf16<char32_t>, char32_t>().from_bytes(data_);
 								return std::string(reinterpret_cast<const char*>(u32str.c_str()), u32str.size() * sizeof(char32_t));
 							}
+						default:
+							break;	//no conversion
 						}
 						break;
 					case unicode::utf32:
@@ -531,6 +545,8 @@ namespace nana
 							return std::wstring_convert<std::codecvt_utf16<char32_t>, char32_t>().to_bytes(
 									std::u32string(reinterpret_cast<const char32_t*>(data_.c_str()), data_.size() / sizeof(char32_t))
 								);
+						default:
+							break; //no conversion
 						}
 						break;
 					}
@@ -553,7 +569,7 @@ namespace nana
 							std::u32string utf32str = std::wstring_convert<std::codecvt_utf16<char32_t>, char32_t>().from_bytes(bytes, bytes + sizeof(wchar_t) * wcstr.size());
 							return std::string(reinterpret_cast<const char*>(utf32str.c_str()), sizeof(char32_t) * utf32str.size());
 						}
-	#elif defined(NANA_LINUX) || defined(NANA_MACOS)
+	#elif defined(NANA_POSIX)
 						return std::string(reinterpret_cast<const char*>(wcstr.c_str()), sizeof(wchar_t) * wcstr.size());
 	#else
 						throw std::runtime_error("Bad charset");
@@ -586,7 +602,7 @@ namespace nana
 
 			virtual std::wstring && wstr_move()
 			{
-				wdata_for_move_ = std::move(wstr());
+				wdata_for_move_ = wstr();
 				return std::move(wdata_for_move_);
 			}
 		private:
@@ -645,7 +661,7 @@ namespace nana
 						std::u32string utf32str = std::wstring_convert<std::codecvt_utf16<char32_t>, char32_t>().from_bytes(bytes, bytes + sizeof(wchar_t) * data_.size());
 						return std::string(reinterpret_cast<const char*>(utf32str.c_str()), sizeof(char32_t) * utf32str.size());
 					}
-	#elif defined(NANA_LINUX) || defined(NANA_MACOS)
+	#elif defined(NANA_POSIX)
 					return std::string(reinterpret_cast<const char*>(data_.c_str()), data_.size() * sizeof(wchar_t));
 	#else
 					throw std::runtime_error("Bad charset");
@@ -681,14 +697,14 @@ namespace nana
 				}
 				unsigned ch = *p;
 				unsigned long code;
-				if(ch < 0xC0)       // error? - move to end. Posible ANSI or ISO code-page 
+				if(ch < 0xC0)       // error? - move to end. Possible ANSI or ISO code-page
 				{
 					//return *(p++); // temp: assume equal
 					//p = end;
 					//return 0;
 					return def_encoding_error_police->next_code_point(p, end);
 				}
-				else if(ch < 0xE0 && (p + 1 <= end))      // two byte chararcter
+				else if(ch < 0xE0 && (p + 1 <= end))      // two byte character
 				{
 					code = ((ch & 0x1F) << 6) | (p[1] & 0x3F);
 					p += 2;
@@ -801,7 +817,7 @@ namespace nana
 				s += static_cast<char>(0x80 | ((code >> 12) & 0x3F));
 				s += static_cast<char>(0x80 | ((code >> 6) & 0x3F));
 				s += static_cast<char>(0x80 | (code & 0x3F));
-			}		
+			}
 		}
 
 		//le_or_be, true = le, false = be

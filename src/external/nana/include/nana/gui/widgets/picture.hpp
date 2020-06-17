@@ -1,7 +1,7 @@
 /**
  *	A Picture Implementation
  *	Nana C++ Library(http://www.nanapro.org)
- *	Copyright(C) 2003-2015 Jinhao(cnjinhao@hotmail.com)
+ *	Copyright(C) 2003-2017 Jinhao(cnjinhao@hotmail.com)
  *
  *	Distributed under the Boost Software License, Version 1.0. 
  *	(See accompanying file LICENSE_1_0.txt or copy at 
@@ -36,7 +36,6 @@ namespace nana
 				void attached(widget_reference, graph_reference)	override;
 			private:
 				void refresh(graph_reference)	override;
-				void _m_draw_background(unsigned,unsigned);
 			private:
 				implement * const impl_;
 			};
@@ -60,10 +59,10 @@ namespace nana
 		/// Enables the image to be stretched to the widget size.
 		void stretchable(unsigned left, unsigned top, unsigned right, unsigned bottom);
 
-		/// Enables/disable the image to be stretched without changing aspect ratio.
+		/// Enables/disables the image to be stretched without changing aspect ratio.
 		void stretchable(bool);
 
-        /// Fills a gradual-change color in background. If One of colors is invisible or clr_from is equal to clr_to, it draws background in bgcolor.
+        /// Fills a gradual-change color in background. If one of colors is invisible or clr_from is equal to clr_to, it draws background in bgcolor.
 		void set_gradual_background(const color& clr_from, const color& clr_to, bool horizontal);
 		void transparent(bool);
 		bool transparent() const;

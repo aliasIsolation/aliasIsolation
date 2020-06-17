@@ -1,7 +1,7 @@
 /*
 *	A Basic Window Widget Definition
 *	Nana C++ Library(http://www.nanapro.org)
-*	Copyright(C) 2003-2016 Jinhao(cnjinhao@hotmail.com)
+*	Copyright(C) 2003-2019 Jinhao(cnjinhao@hotmail.com)
 *
 *	Distributed under the Boost Software License, Version 1.0.
 *	(See accompanying file LICENSE_1_0.txt or copy at
@@ -10,7 +10,7 @@
 *	@file: nana/gui/detail/basic_window.cpp
 */
 
-#include <nana/gui/detail/basic_window.hpp>
+#include "basic_window.hpp"
 #include <nana/gui/detail/native_window_interface.hpp>
 
 namespace nana
@@ -204,6 +204,11 @@ namespace nana
 			{
 				return (visible_state::invisible != visibility_);
 			}
+
+			bool caret::activated() const
+			{
+				return (visible_state::displayed == visibility_);
+			}
 		//end class caret
 
 		//struct basic_window
@@ -211,40 +216,14 @@ namespace nana
 				basic_window::other_tag::other_tag(category::flags categ)
 					: category(categ), active_window(nullptr), upd_state(update_state::none)
 				{
-#ifndef WIDGET_FRAME_DEPRECATED
-					switch(categ)
-					{
-					case category::flags::root:
-						attribute.root = new attr_root_tag;
-						break;
-					case category::flags::frame:
-						attribute.frame = new attr_frame_tag;
-						break;
-					default:
-						attribute.root = nullptr;
-					}
-#else
 					if (category::flags::root == categ)
 						attribute.root = new attr_root_tag;
 					else
 						attribute.root = nullptr;
-#endif
 				}
 
 				basic_window::other_tag::~other_tag()
 				{
-#ifndef WIDGET_FRAME_DEPRECATED
-					switch(category)
-					{
-					case category::flags::root:
-						delete attribute.root;
-						break;
-					case category::flags::frame:
-						delete attribute.frame;
-						break;
-					default: break;
-					}
-#endif
 					if (category::flags::root == category)
 						delete attribute.root;
 				}
@@ -285,14 +264,6 @@ namespace nana
 				}
 			}
 
-#ifndef WIDGET_FRAME_DEPRECATED
-			void basic_window::frame_window(native_window_type wd)
-			{
-				if(category::flags::frame == this->other.category)
-					other.attribute.frame->container = wd;
-			}
-#endif
-
 			bool basic_window::is_ancestor_of(const basic_window* wd) const
 			{
 				while (wd)
@@ -323,30 +294,24 @@ namespace nana
 			{
 				for (auto wd = this; wd; wd = wd->parent)
 				{
-					if (basic_window::update_state::refresh == wd->other.upd_state)
+					if (basic_window::update_state::refreshed == wd->other.upd_state)
 						return true;
 				}
 				return false;
 			}
 
-			const basic_window* get_child_caret(const basic_window* wd, bool this_is_a_child)
-			{
-				if (this_is_a_child && wd->annex.caret_ptr)
-					return wd;
-
-				for (auto child : wd->children)
-				{
-					auto caret_wd = get_child_caret(child, true);
-					if (caret_wd)
-						return caret_wd;
-				}
-
-				return nullptr;
-			}
-
 			const basic_window * basic_window::child_caret() const
 			{
-				return get_child_caret(this, false);
+				for (auto child : children) {
+					//Only return the child who has activated caret.
+					if (child->annex.caret_ptr && child->annex.caret_ptr->activated())
+						return child;
+
+					auto caret = child->child_caret();
+					if (caret)
+						return caret;
+				}
+				return nullptr;
 			}
 
 			bool basic_window::is_draw_through() const
@@ -369,6 +334,43 @@ namespace nana
 			{
 				flags.action_before = flags.action;
 				flags.action = act;
+			}
+
+
+			bool basic_window::try_lazy_update(bool try_refresh)
+			{
+				if (drawer.graphics.empty())
+					return true;
+
+				if (!this->root_widget->other.attribute.root->lazy_update)
+					return false;
+				
+				if (nullptr == effect.bground)
+				{
+					if (try_refresh)
+					{
+						flags.refreshing = true;
+						drawer.refresh();
+						flags.refreshing = false;
+					}
+				}
+
+				for (auto i = this->root_widget->other.attribute.root->update_requesters.cbegin(); i != this->root_widget->other.attribute.root->update_requesters.cend();)
+				{
+					auto req = *i;
+					//Avoid redundancy, don't insert the window if it or its ancestor window already exist in the container.
+					if ((req == this) || req->is_ancestor_of(this))
+						return true;
+
+					//If there is a window which is a child or child's child of the window, remove it.
+					if (this->is_ancestor_of(req))
+						i = this->root_widget->other.attribute.root->update_requesters.erase(i);
+					else
+						++i;
+				}
+
+				this->root_widget->other.attribute.root->update_requesters.push_back(this);
+				return true;
 			}
 
 			void basic_window::_m_init_pos_and_size(basic_window* parent, const rectangle& r)
@@ -402,7 +404,7 @@ namespace nana
 					root = agrparent->root;
 					root_graph = agrparent->root_graph;
 					index = static_cast<unsigned>(agrparent->children.size());
-					agrparent->children.push_back(this);
+					agrparent->children.emplace_back(this);
 				}
 
 				predef_cursor = cursor::arrow;
@@ -411,6 +413,7 @@ namespace nana
 				flags.enabled = true;
 				flags.modal = false;
 				flags.take_active = true;
+				flags.draggable = false;
 				flags.dropable = false;
 				flags.fullscreen = false;
 				flags.tab = nana::detail::tab_type::none;
@@ -434,7 +437,7 @@ namespace nana
 				extra_width = extra_height = 0;
 
 				//The window must keep its thread_id same as its parent if it is a child.
-				//Otherwise, its root buffer would be mapped repeatly if it is in its parent thread.
+				//Otherwise, its root buffer would be mapped repeatedly if it is in its parent thread.
 				thread_id = nana::system::this_thread_id();
 				if(agrparent && (thread_id != agrparent->thread_id))
 					thread_id = agrparent->thread_id;
@@ -442,8 +445,6 @@ namespace nana
 
 			bool basic_window::set_events(const std::shared_ptr<general_events>& p)
 			{
-				if (annex.events_ptr)
-					return false;
 				annex.events_ptr = p;
 				return true;
 			}

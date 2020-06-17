@@ -1,7 +1,7 @@
 /*
  *	Paint Graphics Implementation
  *	Nana C++ Library(http://www.nanapro.org)
- *	Copyright(C) 2003-2014 Jinhao(cnjinhao@hotmail.com)
+ *	Copyright(C) 2003-2018 Jinhao(cnjinhao@hotmail.com)
  *
  *	Distributed under the Boost Software License, Version 1.0.
  *	(See accompanying file LICENSE_1_0.txt or copy at
@@ -17,41 +17,53 @@
 
 #include "../basic_types.hpp"
 #include "../gui/basis.hpp"
-#include "pixel_buffer.hpp"
+#include <nana/filesystem/filesystem.hpp>
+
+#include "detail/ptdefs.hpp"
+
+#ifdef _nana_std_has_string_view
+#include <string_view>
+#endif
 
 namespace nana
 {
 	namespace paint
 	{
-		namespace detail
-		{
-			struct native_font_signature;
-		}// end namespace detail
-
-		typedef detail::native_font_signature*		native_font_type;
-
 		class font
 		{
 			friend class graphics;
 		public:
+			using path_type = ::std::filesystem::path;
+
+			using font_style = ::nana::detail::font_style;
+
 			font();
 			font(drawable_type);
 			font(const font&);
-			font(const ::std::string& name, unsigned size, bool bold = false, bool italic = false, bool underline = false, bool strike_out = false);
+
+			font(const ::std::string& name, double size_pt, const font_style& fs = {});
+			font(double size_pt, const path_type& truetype, const font_style& fs = {});
+
 			~font();
 			bool empty() const;
-			void make(const ::std::string& name, unsigned size, bool bold = false, bool italic = false, bool underline = false, bool strike_out = false);
-			void make_raw(const ::std::string& name, unsigned height, unsigned weight, bool italic, bool underline, bool strike_out);
 
 			void set_default() const;
 			::std::string name() const;
-			unsigned size() const;
+
+			/// Returns font size, in point.
+			/**
+			* @param fixed Indicates whether to return a fixed font size. If this parameter is false, the method may return zero for default system font size. If the parameter is true, the method returns a fixed size of default font size if the font size that assigned by constructor is zero.
+			* @return The font size, in point.
+			*/
+			double size(bool fixed = false) const;
+
 			bool bold() const;
-			unsigned height() const;
 			unsigned weight() const;
 			bool italic() const;
 			native_font_type handle() const;
 			void release();
+			bool strikeout() const;
+			bool underline() const;
 
 			font& operator=(const font&);
 			bool operator==(const font&) const;
@@ -72,35 +84,68 @@ namespace nana
 		class graphics
 		{
 		public:
-			typedef ::nana::native_window_type native_window_type;
-
 			graphics();
 			graphics(const ::nana::size&);                 ///< size in pixel
 			graphics(const graphics&);      ///< the resource is not copyed, the two graphics objects refer to the *SAME* resource
 			graphics& operator=(const graphics&);
+
+			graphics(graphics&&);
+			graphics& operator=(graphics&&);
+
+			~graphics();
+
 			bool changed() const;           ///< Returns true if the graphics object is operated
 			bool empty() const;             ///< Returns true if the graphics object does not refer to any resource.
-			operator const void*() const;
+			explicit operator bool() const noexcept;
 
 			drawable_type handle() const;
 			const void* pixmap() const;
 			const void* context() const;
 
-			void make(const ::nana::size&);					///< Creates a bitmap resource that size is width by height in pixel
+			void swap(graphics& other) noexcept;
+
+			/// Creates a graphics/drawable resource
+			/**
+			 * @param sz The dimension of the graphics to be requested. If sz is empty, it performs as release().
+			 */
+			void make(const ::nana::size& sz);
 			void resize(const ::nana::size&);
 			void typeface(const font&);						///< Selects a specified font type into the graphics object.
 			font typeface() const;
+
+#ifdef _nana_std_has_string_view
+			::nana::size text_extent_size(std::string_view text) const;
+			::nana::size text_extent_size(std::wstring_view text) const;
+
+			///Only supports the wide string, because it is very hard to specify the begin and end position in a UTF-8 string.
+			::nana::size glyph_extent_size(std::wstring_view text, std::size_t begin, std::size_t end) const;
+
+			/// Returns a buffer which stores the pixel of each charater stored in text.
+			/**
+			 * @param text The text to be requested.
+			 * @return A buffer which stores the pixel of each character stored in text, its length is same with text's length. If text is empty, it returns a buffer with a senseless value.
+			 */
+			std::unique_ptr<unsigned[]> glyph_pixels(std::wstring_view text) const;
+
+			::nana::size	bidi_extent_size(std::string_view utf8_text) const;
+			::nana::size	bidi_extent_size(std::wstring_view text) const;
+#else
 			::nana::size	text_extent_size(const ::std::string&) const;
 			::nana::size	text_extent_size(const char*, std::size_t len) const;
+
 			::nana::size	text_extent_size(const wchar_t*) const;    ///< Computes the width and height of the specified string of text.
 			::nana::size	text_extent_size(const ::std::wstring&) const;    ///< Computes the width and height of the specified string of text.
 			::nana::size	text_extent_size(const wchar_t*, std::size_t length) const;    ///< Computes the width and height of the specified string of text with the specified length.
 			::nana::size	text_extent_size(const ::std::wstring&, std::size_t length) const;    ///< Computes the width and height of the specified string of text with the specified length.
+
 			::nana::size	glyph_extent_size(const wchar_t*, std::size_t length, std::size_t begin, std::size_t end) const;
 			::nana::size	glyph_extent_size(const ::std::wstring&, std::size_t length, std::size_t begin, std::size_t end) const;
+
 			bool glyph_pixels(const wchar_t *, std::size_t length, unsigned* pxbuf) const;
+
 			::nana::size	bidi_extent_size(const std::wstring&) const;
 			::nana::size	bidi_extent_size(const std::string&) const;
+#endif
 
 			bool text_metrics(unsigned & ascent, unsigned& descent, unsigned& internal_leading) const;
 
@@ -113,7 +158,7 @@ namespace nana
 			void bitblt(const ::nana::rectangle& r_dst, const graphics& src, const point& p_src);///< Transfers the color data corresponding to r_dst from the src graphics at point p_src to this graphics.
 
 			void blend(const ::nana::rectangle& r, const ::nana::color&, double fade_rate);
-			void blend(const ::nana::rectangle& s_r, graphics& dst, const point& d_pos, double fade_rate) const;///< blends with the dst object.
+			void blend(const ::nana::rectangle& blend_r, const graphics& blend_graph, const point& blend_graph_point, double fade_rate);///< blends with the blend_graph.
 
 			void blur(const ::nana::rectangle& r, std::size_t radius);      ///< Blur process.
 
@@ -129,25 +174,35 @@ namespace nana
 
 			void flush();
 
-			unsigned width() const;
-			unsigned height() const;      ///< Returns the height of the off-screen buffer.
+			unsigned width() const;		///< Returns the width of the off-screen buffer.
+			unsigned height() const;	///< Returns the height of the off-screen buffer.
 			::nana::size size() const;
-			void setsta();      ///<  	Clears the status if the graphics object had been changed
+			void setsta();				///< Clears the status if the graphics object had been changed
 			void set_changed();
 			void release();
 
 			/// Saves images as a windows bitmap file
 			/// @param file_utf8 A UTF-8 string to a filename
-			void save_as_file(const char* file_utf8) const throw();
+			void save_as_file(const char* file_utf8) const noexcept;
 
 			::nana::color	palette(bool for_text) const;
 			graphics&		palette(bool for_text, const ::nana::color&);
 
-			unsigned bidi_string(const nana::point&, const wchar_t *, std::size_t len);
-			unsigned bidi_string(const point& pos, const char*, std::size_t len);
-
 			void set_pixel(int x, int y, const ::nana::color&);
 			void set_pixel(int x, int y);
+
+#ifdef _nana_std_has_string_view
+			unsigned bidi_string(const point&, std::string_view utf8str);
+			unsigned bidi_string(const point& pos, std::wstring_view str);
+
+			void string(const point&, std::string_view utf8str);
+			void string(const point&, std::string_view utf8str, const nana::color&);
+
+			void string(const point&, std::wstring_view str);
+			void string(const point&, std::wstring_view str, const nana::color&);
+#else
+			unsigned bidi_string(const nana::point&, const wchar_t *, std::size_t len);
+			unsigned bidi_string(const point& pos, const char*, std::size_t len);
 
 			void string(const point&, const std::string& text_utf8);
 			void string(const point&, const std::string& text_utf8, const color&);
@@ -156,6 +211,7 @@ namespace nana
 			void string(const point&, const wchar_t*);
 			void string(const point&, const ::std::wstring&);
 			void string(const point&, const ::std::wstring&, const color&);
+#endif
 
 			void line(const point&, const point&);
 			void line(const point&, const point&, const color&);
@@ -172,12 +228,18 @@ namespace nana
 			void gradual_rectangle(const ::nana::rectangle&, const color& from, const color& to, bool vertical);
 			void round_rectangle(const ::nana::rectangle&, unsigned radius_x, unsigned radius_y, const color&, bool solid, const color& color_if_solid);
 		private:
-			std::shared_ptr< ::nana::detail::drawable_impl_type> dwptr_;
-			font			font_shadow_;
-            drawable_type	handle_;
-			::nana::size	size_;
-			pixel_buffer	pxbuf_;
-			bool changed_;
+			struct implementation;
+			std::unique_ptr<implementation> impl_;
+		};
+
+		class draw
+		{
+		public:
+			draw(graphics& graph);
+
+			void corner(const rectangle& r, unsigned pixels);
+		private:
+			graphics& graph_;
 		};
 	}//end namespace paint
 }	//end namespace nana

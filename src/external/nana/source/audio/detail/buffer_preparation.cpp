@@ -26,14 +26,15 @@ namespace nana{	namespace audio
 					memset(m, 0, sizeof(meta));
 					m->dwBufferLength = static_cast<unsigned long>(block_size_);
 					m->lpData = rawbuf + sizeof(meta);
+#elif defined(__FreeBSD__)
 #elif defined(NANA_LINUX)
 					m->bufsize = ck.nAvgBytesPerSec;
 					m->buf = rawbuf + sizeof(meta);
 #endif
-					prepared_.push_back(m);
+					prepared_.emplace_back(m);
 				}
 
-				thr_ = std::move(std::thread([this](){this->_m_prepare_routine();}));
+				thr_ = std::thread{[this](){this->_m_prepare_routine();}};
 			}
 
 			buffer_preparation::~buffer_preparation()
@@ -78,8 +79,8 @@ namespace nana{	namespace audio
 			void buffer_preparation::revert(meta * m)
 			{
 				std::lock_guard<decltype(token_prepared_)> lock(token_prepared_);
-				bool if_signal = prepared_.empty();
-				prepared_.push_back(m);
+				auto const if_signal = prepared_.empty();
+				prepared_.emplace_back(m);
 				if(if_signal)
 					cond_prepared_.notify_one();
 			}
@@ -124,6 +125,7 @@ namespace nana{	namespace audio
 						{
 #if defined(NANA_WINDOWS)
 							memcpy(m->lpData + buffered, buf, read_bytes);
+#elif defined(__FreeBSD__)
 #elif defined(NANA_LINUX)
 							memcpy(m->buf + buffered, buf, read_bytes);
 #endif
@@ -144,11 +146,12 @@ namespace nana{	namespace audio
 					}
 #if defined(NANA_WINDOWS)
 					m->dwBufferLength = static_cast<unsigned long>(buffered);
+#elif defined(__FreeBSD__)
 #elif defined(NANA_LINUX)
 					m->bufsize = buffered;
 #endif
 					std::lock_guard<decltype(token_buffer_)> lock(token_buffer_);
-					buffer_.push_back(m);
+					buffer_.emplace_back(m);
 					if(wait_for_buffer_)
 					{
 						cond_buffer_.notify_one();

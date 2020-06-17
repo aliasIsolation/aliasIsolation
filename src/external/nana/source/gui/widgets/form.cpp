@@ -1,6 +1,6 @@
 /*
  *	A Form Implementation
- *	Copyright(C) 2003-2013 Jinhao(cnjinhao@hotmail.com)
+ *	Copyright(C) 2003-2018 Jinhao(cnjinhao@hotmail.com)
  *
  *	Distributed under the Boost Software License, Version 1.0. 
  *	(See accompanying file LICENSE_1_0.txt or copy at 
@@ -10,6 +10,7 @@
  */
 
 #include <nana/gui/widgets/form.hpp>
+#include <nana/gui/detail/bedrock.hpp>
 
 namespace nana
 {
@@ -38,7 +39,7 @@ namespace nana
 				place & form_base::get_place()
 				{
 					if (this->empty())
-						throw std::runtime_error("form::get_plac: the form has destroyed.");
+						throw std::runtime_error("form::get_place(): the form has been destroyed.");
 
 					if (!place_)
 						place_.reset(new place{ *this });
@@ -46,9 +47,9 @@ namespace nana
 					return *place_;
 				}
 
-				void form_base::div(const char* div_text)
+				void form_base::div(std::string div_text)
 				{
-					get_place().div(div_text);
+					get_place().div(std::move(div_text));
 				}
 
 				place::field_reference form_base::operator[](const char* field_name)
@@ -93,6 +94,11 @@ namespace nana
 		void form::wait_for_this()
 		{
 			API::wait_for(handle());
+		}
+
+		void form::keyboard_accelerator(const accel_key& key, const std::function<void()>& fn)
+		{
+			nana::detail::bedrock::instance().keyboard_accelerator(this->native_handle(), key, fn);
 		}
 	//end class form
 
