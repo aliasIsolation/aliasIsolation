@@ -679,8 +679,5 @@
     <ClInclude Include="..\..\include\nana\gui\widgets\group.hpp">
       <Filter>Header Files\gui\widgets</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\nana\c++defines.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
   </ItemGroup>
 </Project>

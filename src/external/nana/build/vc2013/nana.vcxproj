@@ -266,7 +266,6 @@
     <ClInclude Include="..\..\include\nana\audio\detail\buffer_preparation.hpp" />
     <ClInclude Include="..\..\include\nana\audio\player.hpp" />
     <ClInclude Include="..\..\include\nana\basic_types.hpp" />
-    <ClInclude Include="..\..\include\nana\c++defines.hpp" />
     <ClInclude Include="..\..\include\nana\charset.hpp" />
     <ClInclude Include="..\..\include\nana\concepts.hpp" />
     <ClInclude Include="..\..\include\nana\config.hpp" />
