@@ -127,4 +127,5 @@ local cinematicTools = SharedLibrary {
 }
 
 Default(dll)
+Default(injector)
 Default(injectorGui)
