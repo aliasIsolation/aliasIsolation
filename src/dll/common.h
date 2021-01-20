@@ -1,5 +1,8 @@
 #pragma once
 
+// Include STDIO for sprintf.
+#include <stdio.h>
+
 typedef unsigned int uint;
 
 #define MH_CHECK(EXPR) { int ret = EXPR; if (ret != MH_OK) { char buf[256]; sprintf(buf, #EXPR " failed: %d.", ret); MessageBoxA(NULL, buf, NULL, NULL); DebugBreak(); } }
