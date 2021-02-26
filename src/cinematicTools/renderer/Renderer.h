@@ -1,10 +1,11 @@
+#include <d3d11.h>
+#include <dxgi.h>
 #include "d3dx11.h"
-#include "D3D11.h"
 #include "DXErr.h" 
 #include "D3DX11async.h"
-#include "D3Dcompiler.h" 
+#include <d3dcompiler.h>
 #include "D3dx11effect.h"
-#include "D3D11Shader.h"
+#include <d3d11shader.h>
 //#include "D3DX10math.h"
 #include "FW1FontWrapper.h" 
 
