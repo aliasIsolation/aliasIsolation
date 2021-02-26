@@ -1,12 +1,8 @@
 //--------------------------------------------------------------------------------------
 // File: DualTextureEffect.cpp
 //
-// THIS CODE AND INFORMATION IS PROVIDED "AS IS" WITHOUT WARRANTY OF
-// ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED TO
-// THE IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A
-// PARTICULAR PURPOSE.
-//
 // Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License.
 //
 // http://go.microsoft.com/fwlink/?LinkId=248929
 //--------------------------------------------------------------------------------------
@@ -27,17 +23,17 @@ struct DualTextureEffectConstants
     XMMATRIX worldViewProj;
 };
 
-static_assert( ( sizeof(DualTextureEffectConstants) % 16 ) == 0, "CB size not padded correctly" );
+static_assert((sizeof(DualTextureEffectConstants) % 16) == 0, "CB size not padded correctly");
 
 
 // Traits type describes our characteristics to the EffectBase template.
 struct DualTextureEffectTraits
 {
-    typedef DualTextureEffectConstants ConstantBufferType;
+    using ConstantBufferType = DualTextureEffectConstants;
 
-    static const int VertexShaderCount = 4;
-    static const int PixelShaderCount = 2;
-    static const int ShaderPermutationCount = 4;
+    static constexpr int VertexShaderCount = 4;
+    static constexpr int PixelShaderCount = 2;
+    static constexpr int ShaderPermutationCount = 4;
 };
 
 
@@ -53,7 +49,7 @@ public:
 
     ComPtr<ID3D11ShaderResourceView> texture2;
 
-    int GetCurrentShaderPermutation() const;
+    int GetCurrentShaderPermutation() const noexcept;
 
     void Apply(_In_ ID3D11DeviceContext* deviceContext);
 };
@@ -82,6 +78,7 @@ namespace
 }
 
 
+template<>
 const ShaderBytecode EffectBase<DualTextureEffectTraits>::VertexShaderBytecode[] =
 {
     { DualTextureEffect_VSDualTexture,        sizeof(DualTextureEffect_VSDualTexture)        },
@@ -92,6 +89,7 @@ const ShaderBytecode EffectBase<DualTextureEffectTraits>::VertexShaderBytecode[]
 };
 
 
+template<>
 const int EffectBase<DualTextureEffectTraits>::VertexShaderIndices[] =
 {
     0,      // basic
@@ -101,6 +99,7 @@ const int EffectBase<DualTextureEffectTraits>::VertexShaderIndices[] =
 };
 
 
+template<>
 const ShaderBytecode EffectBase<DualTextureEffectTraits>::PixelShaderBytecode[] =
 {
     { DualTextureEffect_PSDualTexture,        sizeof(DualTextureEffect_PSDualTexture)        },
@@ -109,6 +108,7 @@ const ShaderBytecode EffectBase<DualTextureEffectTraits>::PixelShaderBytecode[] 
 };
 
 
+template<>
 const int EffectBase<DualTextureEffectTraits>::PixelShaderIndices[] =
 {
     0,      // basic
@@ -119,7 +119,8 @@ const int EffectBase<DualTextureEffectTraits>::PixelShaderIndices[] =
 
 
 // Global pool of per-device DualTextureEffect resources.
-SharedResourcePool<ID3D11Device*, EffectBase<DualTextureEffectTraits>::DeviceResources> EffectBase<DualTextureEffectTraits>::deviceResourcesPool;
+template<>
+SharedResourcePool<ID3D11Device*, EffectBase<DualTextureEffectTraits>::DeviceResources> EffectBase<DualTextureEffectTraits>::deviceResourcesPool = {};
 
 
 // Constructor.
@@ -127,14 +128,14 @@ DualTextureEffect::Impl::Impl(_In_ ID3D11Device* device)
   : EffectBase(device),
     vertexColorEnabled(false)
 {
-    static_assert( _countof(EffectBase<DualTextureEffectTraits>::VertexShaderIndices) == DualTextureEffectTraits::ShaderPermutationCount, "array/max mismatch" );
-    static_assert( _countof(EffectBase<DualTextureEffectTraits>::VertexShaderBytecode) == DualTextureEffectTraits::VertexShaderCount, "array/max mismatch" );
-    static_assert( _countof(EffectBase<DualTextureEffectTraits>::PixelShaderBytecode) == DualTextureEffectTraits::PixelShaderCount, "array/max mismatch" );
-    static_assert( _countof(EffectBase<DualTextureEffectTraits>::PixelShaderIndices) == DualTextureEffectTraits::ShaderPermutationCount, "array/max mismatch" );
+    static_assert(static_cast<int>(std::size(EffectBase<DualTextureEffectTraits>::VertexShaderIndices)) == DualTextureEffectTraits::ShaderPermutationCount, "array/max mismatch");
+    static_assert(static_cast<int>(std::size(EffectBase<DualTextureEffectTraits>::VertexShaderBytecode)) == DualTextureEffectTraits::VertexShaderCount, "array/max mismatch");
+    static_assert(static_cast<int>(std::size(EffectBase<DualTextureEffectTraits>::PixelShaderBytecode)) == DualTextureEffectTraits::PixelShaderCount, "array/max mismatch");
+    static_assert(static_cast<int>(std::size(EffectBase<DualTextureEffectTraits>::PixelShaderIndices)) == DualTextureEffectTraits::ShaderPermutationCount, "array/max mismatch");
 }
 
 
-int DualTextureEffect::Impl::GetCurrentShaderPermutation() const
+int DualTextureEffect::Impl::GetCurrentShaderPermutation() const noexcept
 {
     int permutation = 0;
 
@@ -180,20 +181,20 @@ void DualTextureEffect::Impl::Apply(_In_ ID3D11DeviceContext* deviceContext)
 
 // Public constructor.
 DualTextureEffect::DualTextureEffect(_In_ ID3D11Device* device)
-  : pImpl(new Impl(device))
+  : pImpl(std::make_unique<Impl>(device))
 {
 }
 
 
 // Move constructor.
-DualTextureEffect::DualTextureEffect(DualTextureEffect&& moveFrom)
+DualTextureEffect::DualTextureEffect(DualTextureEffect&& moveFrom) noexcept
   : pImpl(std::move(moveFrom.pImpl))
 {
 }
 
 
 // Move assignment.
-DualTextureEffect& DualTextureEffect::operator= (DualTextureEffect&& moveFrom)
+DualTextureEffect& DualTextureEffect::operator= (DualTextureEffect&& moveFrom) noexcept
 {
     pImpl = std::move(moveFrom.pImpl);
     return *this;

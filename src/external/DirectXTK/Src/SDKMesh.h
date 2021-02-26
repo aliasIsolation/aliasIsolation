@@ -6,18 +6,16 @@
 //
 // http://go.microsoft.com/fwlink/?LinkId=226208
 //
-// THIS CODE AND INFORMATION IS PROVIDED "AS IS" WITHOUT WARRANTY OF
-// ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED TO
-// THE IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A
-// PARTICULAR PURPOSE.
-//
 // Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License.
 //
 // http://go.microsoft.com/fwlink/?LinkId=248929
+// http://go.microsoft.com/fwlink/?LinkID=615561
 //--------------------------------------------------------------------------------------
 
 #pragma once
 
+#include <cstdint>
 
 namespace DXUT
 {
@@ -49,7 +47,7 @@ namespace DXUT
     // D3DDECLUSAGE_POSITION / D3DDECLTYPE_FLOAT3
     // (D3DDECLUSAGE_BLENDWEIGHT / D3DDECLTYPE_UBYTE4N
     // D3DDECLUSAGE_BLENDINDICES / D3DDECLTYPE_UBYTE4)?
-    // (D3DDECLUSAGE_NORMAL / D3DDECLTYPE_FLOAT3, D3DDECLTYPE_FLOAT16_4, D3DDECLTYPE_SHORT4N, D3DDECLTYPE_UBYTE4N, or D3DDECLTYPE_DEC3N [not supported])?
+    // (D3DDECLUSAGE_NORMAL / D3DDECLTYPE_FLOAT3, D3DDECLTYPE_FLOAT16_4, D3DDECLTYPE_SHORT4N, D3DDECLTYPE_UBYTE4N, or D3DDECLTYPE_DEC3N)?
     // (D3DDECLUSAGE_COLOR / D3DDECLTYPE_D3DCOLOR)?
     // (D3DDECLUSAGE_TEXCOORD / D3DDECLTYPE_FLOAT1, D3DDECLTYPE_FLOAT2 or D3DDECLTYPE_FLOAT16_2, D3DDECLTYPE_FLOAT3 or D3DDECLTYPE_FLOAT16_4, D3DDECLTYPE_FLOAT4 or D3DDECLTYPE_FLOAT16_4)*
     // (D3DDECLUSAGE_TANGENT / same as D3DDECLUSAGE_NORMAL)?
@@ -78,11 +76,17 @@ namespace DXUT
         D3DDECLTYPE_UBYTE4    =  5,  // 4D unsigned uint8_t
         D3DDECLTYPE_UBYTE4N   =  8,  // Each of 4 bytes is normalized by dividing to 255.0
         D3DDECLTYPE_SHORT4N   = 10,  // 4D signed short normalized (v[0]/32767.0,v[1]/32767.0,v[2]/32767.0,v[3]/32767.0)
-        // Note: There is no equivalent to D3DDECLTYPE_DEC3N (14) as a DXGI_FORMAT
+        D3DDECLTYPE_DEC3N     = 14,  // 3D signed normalized (v[0]/511.0, v[1]/511.0, v[2]/511.0, 1.)
+                                     // Note: There is no equivalent to D3DDECLTYPE_DEC3N (14) as a DXGI_FORMAT
         D3DDECLTYPE_FLOAT16_2 = 15,  // Two 16-bit floating point values, expanded to (value, value, 0, 1)
         D3DDECLTYPE_FLOAT16_4 = 16,  // Four 16-bit floating point values
 
         D3DDECLTYPE_UNUSED    = 17,  // When the type field in a decl is unused.
+
+        // These are extensions for DXGI-based versions of Direct3D
+        D3DDECLTYPE_DXGI_R10G10B10A2_UNORM = 32 + DXGI_FORMAT_R10G10B10A2_UNORM,
+        D3DDECLTYPE_DXGI_R11G11B10_FLOAT   = 32 + DXGI_FORMAT_R11G11B10_FLOAT,
+        D3DDECLTYPE_DXGI_R8G8B8A8_SNORM    = 32 + DXGI_FORMAT_R8G8B8A8_SNORM,
     };
 
     #pragma pack(push,4)
@@ -102,22 +106,22 @@ namespace DXUT
     //--------------------------------------------------------------------------------------
     // Hard Defines for the various structures
     //--------------------------------------------------------------------------------------
-    const uint32_t SDKMESH_FILE_VERSION = 101;
-    const uint32_t MAX_VERTEX_ELEMENTS = 32;
-    const uint32_t MAX_VERTEX_STREAMS = 16;
-    const uint32_t MAX_FRAME_NAME = 100;
-    const uint32_t MAX_MESH_NAME = 100;
-    const uint32_t MAX_SUBSET_NAME = 100;
-    const uint32_t MAX_MATERIAL_NAME = 100;
-    const uint32_t MAX_TEXTURE_NAME = MAX_PATH;
-    const uint32_t MAX_MATERIAL_PATH = MAX_PATH;
-    const uint32_t INVALID_FRAME = uint32_t(-1);
-    const uint32_t INVALID_MESH =  uint32_t(-1);
-    const uint32_t INVALID_MATERIAL = uint32_t(-1);
-    const uint32_t INVALID_SUBSET = uint32_t(-1);
-    const uint32_t INVALID_ANIMATION_DATA = uint32_t(-1);
-    const uint32_t INVALID_SAMPLER_SLOT = uint32_t(-1);
-    const uint32_t ERROR_RESOURCE_VALUE = 1;
+    constexpr uint32_t SDKMESH_FILE_VERSION = 101;
+    constexpr uint32_t SDKMESH_FILE_VERSION_V2 = 200;
+
+    constexpr uint32_t MAX_VERTEX_ELEMENTS = 32;
+    constexpr uint32_t MAX_VERTEX_STREAMS = 16;
+    constexpr uint32_t MAX_FRAME_NAME = 100;
+    constexpr uint32_t MAX_MESH_NAME = 100;
+    constexpr uint32_t MAX_SUBSET_NAME = 100;
+    constexpr uint32_t MAX_MATERIAL_NAME = 100;
+    constexpr uint32_t MAX_TEXTURE_NAME = MAX_PATH;
+    constexpr uint32_t MAX_MATERIAL_PATH = MAX_PATH;
+    constexpr uint32_t INVALID_FRAME = uint32_t(-1);
+    constexpr uint32_t INVALID_MESH =  uint32_t(-1);
+    constexpr uint32_t INVALID_MATERIAL = uint32_t(-1);
+    constexpr uint32_t INVALID_SUBSET = uint32_t(-1);
+    constexpr uint32_t INVALID_ANIMATION_DATA = uint32_t(-1);
 
     //--------------------------------------------------------------------------------------
     // Enumerated Types.
@@ -186,10 +190,7 @@ namespace DXUT
         uint64_t SizeBytes;
         uint64_t StrideBytes;
         D3DVERTEXELEMENT9 Decl[MAX_VERTEX_ELEMENTS];
-        union
-        {
-            uint64_t DataOffset;
-        };
+        uint64_t DataOffset;
     };
 
     struct SDKMESH_INDEX_BUFFER_HEADER
@@ -197,10 +198,7 @@ namespace DXUT
         uint64_t NumIndices;
         uint64_t SizeBytes;
         uint32_t IndexType;
-        union
-        {
-            uint64_t DataOffset;
-        };
+        uint64_t DataOffset;
     };
 
     struct SDKMESH_MESH
@@ -267,31 +265,34 @@ namespace DXUT
         DirectX::XMFLOAT4 Emissive;
         float Power;
 
-        union
-        {
-            uint64_t Force64_1;			//Force the union to 64bits
-        };
-        union
-        {
-            uint64_t Force64_2;			//Force the union to 64bits
-        };
-        union
-        {
-            uint64_t Force64_3;			//Force the union to 64bits
-        };
+        uint64_t Force64_1;
+        uint64_t Force64_2;
+        uint64_t Force64_3;
+        uint64_t Force64_4;
+        uint64_t Force64_5;
+        uint64_t Force64_6;
+    };
 
-        union
-        {
-            uint64_t Force64_4;			//Force the union to 64bits
-        };
-        union
-        {
-            uint64_t Force64_5;		    //Force the union to 64bits
-        };
-        union
-        {
-            uint64_t Force64_6;			//Force the union to 64bits
-        };
+    struct SDKMESH_MATERIAL_V2
+    {
+        char    Name[MAX_MATERIAL_NAME];
+
+        // PBR materials
+        char    RMATexture[MAX_TEXTURE_NAME];
+        char    AlbetoTexture[MAX_TEXTURE_NAME];
+        char    NormalTexture[MAX_TEXTURE_NAME];
+        char    EmissiveTexture[MAX_TEXTURE_NAME];
+
+        float   Alpha;
+
+        char    Reserved[60];
+
+        uint64_t Force64_1;
+        uint64_t Force64_2;
+        uint64_t Force64_3;
+        uint64_t Force64_4;
+        uint64_t Force64_5;
+        uint64_t Force64_6;
     };
 
     struct SDKANIMATION_FILE_HEADER
@@ -316,11 +317,7 @@ namespace DXUT
     struct SDKANIMATION_FRAME_DATA
     {
         char FrameName[MAX_FRAME_NAME];
-        union
-        {
-            uint64_t DataOffset;
-            SDKANIMATION_DATA* pAnimationData;
-        };
+        uint64_t DataOffset;
     };
 
     #pragma pack(pop)
@@ -335,6 +332,7 @@ static_assert( sizeof(DXUT::SDKMESH_MESH) == 224, "SDK Mesh structure size incor
 static_assert( sizeof(DXUT::SDKMESH_SUBSET) == 144, "SDK Mesh structure size incorrect" );
 static_assert( sizeof(DXUT::SDKMESH_FRAME) == 184, "SDK Mesh structure size incorrect" );
 static_assert( sizeof(DXUT::SDKMESH_MATERIAL) == 1256, "SDK Mesh structure size incorrect" );
+static_assert( sizeof(DXUT::SDKMESH_MATERIAL_V2) == sizeof(DXUT::SDKMESH_MATERIAL), "SDK Mesh structure size incorrect" );
 static_assert( sizeof(DXUT::SDKANIMATION_FILE_HEADER) == 40, "SDK Mesh structure size incorrect" );
 static_assert( sizeof(DXUT::SDKANIMATION_DATA) == 40, "SDK Mesh structure size incorrect" );
 static_assert( sizeof(DXUT::SDKANIMATION_FRAME_DATA) == 112, "SDK Mesh structure size incorrect" );

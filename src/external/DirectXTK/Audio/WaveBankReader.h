@@ -3,22 +3,20 @@
 //
 // Functions for loading audio data from Wave Banks
 //
-// THIS CODE AND INFORMATION IS PROVIDED "AS IS" WITHOUT WARRANTY OF
-// ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED TO
-// THE IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A
-// PARTICULAR PURPOSE.
-//
 // Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License.
 //
 // http://go.microsoft.com/fwlink/?LinkId=248929
+// http://go.microsoft.com/fwlink/?LinkID=615561
 //-------------------------------------------------------------------------------------
 
 #pragma once
 
-#include <stdint.h>
 #include <objbase.h>
-#include <memory>
 #include <mmreg.h>
+
+#include <cstdint>
+#include <memory>
 
 
 namespace DirectX
@@ -26,40 +24,43 @@ namespace DirectX
     class WaveBankReader
     {
     public:
-        WaveBankReader();
+        WaveBankReader() noexcept(false);
+
+        WaveBankReader(WaveBankReader&&) = default;
+        WaveBankReader& operator= (WaveBankReader&&) = default;
 
         WaveBankReader(WaveBankReader const&) = delete;
         WaveBankReader& operator= (WaveBankReader const&) = delete;
 
         ~WaveBankReader();
 
-        HRESULT Open( _In_z_ const wchar_t* szFileName );
+        HRESULT Open(_In_z_ const wchar_t* szFileName) noexcept;
 
-        uint32_t Find( _In_z_ const char* name ) const;
+        uint32_t Find(_In_z_ const char* name) const;
 
-        bool IsPrepared();
-        void WaitOnPrepare();
+        bool IsPrepared() noexcept;
+        void WaitOnPrepare() noexcept;
 
-        bool HasNames() const;
-        bool IsStreamingBank() const;
+        bool HasNames() const noexcept;
+        bool IsStreamingBank() const noexcept;
 
-#if defined(_XBOX_ONE) && defined(_TITLE)
-        bool HasXMA() const;
-#endif
+    #if (defined(_XBOX_ONE) && defined(_TITLE)) || defined(_GAMING_XBOX)
+        bool HasXMA() const noexcept;
+    #endif
 
-        const char* BankName() const;
+        const char* BankName() const noexcept;
 
-        uint32_t Count() const;
+        uint32_t Count() const noexcept;
 
-        uint32_t BankAudioSize() const;
+        uint32_t BankAudioSize() const noexcept;
 
-        HRESULT GetFormat( _In_ uint32_t index, _Out_writes_bytes_(maxsize) WAVEFORMATEX* pFormat, _In_ size_t maxsize ) const;
+        HRESULT GetFormat(_In_ uint32_t index, _Out_writes_bytes_(maxsize) WAVEFORMATEX* pFormat, _In_ size_t maxsize) const noexcept;
 
-        HRESULT GetWaveData( _In_ uint32_t index, _Outptr_ const uint8_t** pData, _Out_ uint32_t& dataSize ) const;
+        HRESULT GetWaveData(_In_ uint32_t index, _Outptr_ const uint8_t** pData, _Out_ uint32_t& dataSize) const noexcept;
 
-        HRESULT GetSeekTable( _In_ uint32_t index, _Out_ const uint32_t** pData, _Out_ uint32_t& dataCount, _Out_ uint32_t& tag ) const;
+        HRESULT GetSeekTable(_In_ uint32_t index, _Out_ const uint32_t** pData, _Out_ uint32_t& dataCount, _Out_ uint32_t& tag) const noexcept;
 
-        HANDLE GetAsyncHandle() const;
+        HANDLE GetAsyncHandle() const noexcept;
 
         struct Metadata
         {
@@ -69,7 +70,7 @@ namespace DirectX
             uint32_t    offsetBytes;
             uint32_t    lengthBytes;
         };
-        HRESULT GetMetadata( _In_ uint32_t index, _Out_ Metadata& metadata ) const;
+        HRESULT GetMetadata(_In_ uint32_t index, _Out_ Metadata& metadata) const noexcept;
 
     private:
         // Private implementation.

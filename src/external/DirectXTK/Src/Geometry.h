@@ -1,22 +1,19 @@
 //--------------------------------------------------------------------------------------
 // File: Geometry.h
 //
-// THIS CODE AND INFORMATION IS PROVIDED "AS IS" WITHOUT WARRANTY OF
-// ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED TO
-// THE IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A
-// PARTICULAR PURPOSE.
-//
 // Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License.
 //
 // http://go.microsoft.com/fwlink/?LinkId=248929
+// http://go.microsoft.com/fwlink/?LinkID=615561
 //--------------------------------------------------------------------------------------
 
 #include "VertexTypes.h"
 
 namespace DirectX
 {
-    typedef std::vector<DirectX::VertexPositionNormalTexture> VertexCollection;
-    typedef std::vector<uint16_t> IndexCollection;
+    using VertexCollection = std::vector<DirectX::VertexPositionNormalTexture>;
+    using IndexCollection = std::vector<uint16_t>;
 
     void ComputeBox(VertexCollection& vertices, IndexCollection& indices, const XMFLOAT3& size, bool rhcoords, bool invertn);
     void ComputeSphere(VertexCollection& vertices, IndexCollection& indices, float diameter, size_t tessellation, bool rhcoords, bool invertn);

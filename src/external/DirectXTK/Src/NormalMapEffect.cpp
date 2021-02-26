@@ -1,12 +1,8 @@
 //--------------------------------------------------------------------------------------
 // File: NormalMapEffect.cpp
 //
-// THIS CODE AND INFORMATION IS PROVIDED "AS IS" WITHOUT WARRANTY OF
-// ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED TO
-// THE IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A
-// PARTICULAR PURPOSE.
-//
 // Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License.
 //
 // http://go.microsoft.com/fwlink/?LinkId=248929
 //--------------------------------------------------------------------------------------
@@ -38,17 +34,17 @@ struct NormalMapEffectConstants
     XMMATRIX worldViewProj;
 };
 
-static_assert( ( sizeof(NormalMapEffectConstants) % 16 ) == 0, "CB size not padded correctly" );
+static_assert((sizeof(NormalMapEffectConstants) % 16) == 0, "CB size not padded correctly");
 
 
 // Traits type describes our characteristics to the EffectBase template.
 struct NormalMapEffectTraits
 {
-    typedef NormalMapEffectConstants ConstantBufferType;
+    using ConstantBufferType = NormalMapEffectConstants;
 
-    static const int VertexShaderCount = 2;
-    static const int PixelShaderCount = 4;
-    static const int ShaderPermutationCount = 8;
+    static constexpr int VertexShaderCount = 4;
+    static constexpr int PixelShaderCount = 4;
+    static constexpr int ShaderPermutationCount = 16;
 };
 
 
@@ -62,10 +58,11 @@ public:
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> normalTexture;
 
     bool vertexColorEnabled;
+    bool biasedVertexNormals;
   
     EffectLights lights;
 
-    int GetCurrentShaderPermutation() const;
+    int GetCurrentShaderPermutation() const noexcept;
 
     void Apply(_In_ ID3D11DeviceContext* deviceContext);
 };
@@ -78,6 +75,9 @@ namespace
     #include "Shaders/Compiled/XboxOneNormalMapEffect_VSNormalPixelLightingTx.inc"
     #include "Shaders/Compiled/XboxOneNormalMapEffect_VSNormalPixelLightingTxVc.inc"
 
+    #include "Shaders/Compiled/XboxOneNormalMapEffect_VSNormalPixelLightingTxBn.inc"
+    #include "Shaders/Compiled/XboxOneNormalMapEffect_VSNormalPixelLightingTxVcBn.inc"
+
     #include "Shaders/Compiled/XboxOneNormalMapEffect_PSNormalPixelLightingTx.inc"
     #include "Shaders/Compiled/XboxOneNormalMapEffect_PSNormalPixelLightingTxNoFog.inc"
     #include "Shaders/Compiled/XboxOneNormalMapEffect_PSNormalPixelLightingTxNoSpec.inc"
@@ -85,7 +85,10 @@ namespace
 #else    
     #include "Shaders/Compiled/NormalMapEffect_VSNormalPixelLightingTx.inc"
     #include "Shaders/Compiled/NormalMapEffect_VSNormalPixelLightingTxVc.inc"
-                                                 
+
+    #include "Shaders/Compiled/NormalMapEffect_VSNormalPixelLightingTxBn.inc"
+    #include "Shaders/Compiled/NormalMapEffect_VSNormalPixelLightingTxVcBn.inc"
+
     #include "Shaders/Compiled/NormalMapEffect_PSNormalPixelLightingTx.inc"
     #include "Shaders/Compiled/NormalMapEffect_PSNormalPixelLightingTxNoFog.inc"
     #include "Shaders/Compiled/NormalMapEffect_PSNormalPixelLightingTxNoSpec.inc"
@@ -94,13 +97,18 @@ namespace
 }
 
 
+template<>
 const ShaderBytecode EffectBase<NormalMapEffectTraits>::VertexShaderBytecode[] =
 {    
-    { NormalMapEffect_VSNormalPixelLightingTx,    sizeof(NormalMapEffect_VSNormalPixelLightingTx)   },
-    { NormalMapEffect_VSNormalPixelLightingTxVc,  sizeof(NormalMapEffect_VSNormalPixelLightingTxVc) },
+    { NormalMapEffect_VSNormalPixelLightingTx,     sizeof(NormalMapEffect_VSNormalPixelLightingTx)     },
+    { NormalMapEffect_VSNormalPixelLightingTxVc,   sizeof(NormalMapEffect_VSNormalPixelLightingTxVc)   },
+
+    { NormalMapEffect_VSNormalPixelLightingTxBn,   sizeof(NormalMapEffect_VSNormalPixelLightingTxBn)   },
+    { NormalMapEffect_VSNormalPixelLightingTxVcBn, sizeof(NormalMapEffect_VSNormalPixelLightingTxVcBn) },
 };
 
 
+template<>
 const int EffectBase<NormalMapEffectTraits>::VertexShaderIndices[] =
 {    
     0,      // pixel lighting + texture
@@ -112,9 +120,20 @@ const int EffectBase<NormalMapEffectTraits>::VertexShaderIndices[] =
     0,      // pixel lighting + texture, no fog or specular
     1,      // pixel lighting + texture + vertex color, no specular
     1,      // pixel lighting + texture + vertex color, no fog or specular
+
+    2,      // pixel lighting (biased vertex normal) + texture
+    2,      // pixel lighting (biased vertex normal) + texture, no fog
+    3,      // pixel lighting (biased vertex normal) + texture + vertex color
+    3,      // pixel lighting (biased vertex normal) + texture + vertex color, no fog
+
+    2,      // pixel lighting (biased vertex normal) + texture, no specular
+    2,      // pixel lighting (biased vertex normal) + texture, no fog or specular
+    3,      // pixel lighting (biased vertex normal) + texture + vertex color, no specular
+    3,      // pixel lighting (biased vertex normal) + texture + vertex color, no fog or specular
 };
 
 
+template<>
 const ShaderBytecode EffectBase<NormalMapEffectTraits>::PixelShaderBytecode[] =
 {
     { NormalMapEffect_PSNormalPixelLightingTx,          sizeof(NormalMapEffect_PSNormalPixelLightingTx)          },
@@ -124,6 +143,7 @@ const ShaderBytecode EffectBase<NormalMapEffectTraits>::PixelShaderBytecode[] =
 };
 
 
+template<>
 const int EffectBase<NormalMapEffectTraits>::PixelShaderIndices[] =
 {    
     0,      // pixel lighting + texture
@@ -135,28 +155,45 @@ const int EffectBase<NormalMapEffectTraits>::PixelShaderIndices[] =
     3,      // pixel lighting + texture, no fog or specular
     2,      // pixel lighting + texture + vertex color, no specular
     3,      // pixel lighting + texture + vertex color, no fog or specular
+
+    0,      // pixel lighting (biased vertex normal) + texture
+    1,      // pixel lighting (biased vertex normal) + texture, no fog
+    0,      // pixel lighting (biased vertex normal) + texture + vertex color
+    1,      // pixel lighting (biased vertex normal) + texture + vertex color, no fog
+
+    2,      // pixel lighting (biased vertex normal) + texture, no specular
+    3,      // pixel lighting (biased vertex normal) + texture, no fog or specular
+    2,      // pixel lighting (biased vertex normal) + texture + vertex color, no specular
+    3,      // pixel lighting (biased vertex normal) + texture + vertex color, no fog or specular
 };
 
 
 // Global pool of per-device NormalMapEffect resources.
-SharedResourcePool<ID3D11Device*, EffectBase<NormalMapEffectTraits>::DeviceResources> EffectBase<NormalMapEffectTraits>::deviceResourcesPool;
+template<>
+SharedResourcePool<ID3D11Device*, EffectBase<NormalMapEffectTraits>::DeviceResources> EffectBase<NormalMapEffectTraits>::deviceResourcesPool = {};
 
 
 // Constructor.
 NormalMapEffect::Impl::Impl(_In_ ID3D11Device* device)
-  : EffectBase(device),
-    vertexColorEnabled(false)
+    : EffectBase(device),
+    vertexColorEnabled(false),
+    biasedVertexNormals(false)
 {
-    static_assert( _countof(EffectBase<NormalMapEffectTraits>::VertexShaderIndices) == NormalMapEffectTraits::ShaderPermutationCount, "array/max mismatch" );
-    static_assert( _countof(EffectBase<NormalMapEffectTraits>::VertexShaderBytecode) == NormalMapEffectTraits::VertexShaderCount, "array/max mismatch" );
-    static_assert( _countof(EffectBase<NormalMapEffectTraits>::PixelShaderBytecode) == NormalMapEffectTraits::PixelShaderCount, "array/max mismatch" );
-    static_assert( _countof(EffectBase<NormalMapEffectTraits>::PixelShaderIndices) == NormalMapEffectTraits::ShaderPermutationCount, "array/max mismatch" );
+    if (device->GetFeatureLevel() < D3D_FEATURE_LEVEL_10_0)
+    {
+        throw std::runtime_error("NormalMapEffect requires Feature Level 10.0 or later");
+    }
+
+    static_assert(static_cast<int>(std::size(EffectBase<NormalMapEffectTraits>::VertexShaderIndices)) == NormalMapEffectTraits::ShaderPermutationCount, "array/max mismatch");
+    static_assert(static_cast<int>(std::size(EffectBase<NormalMapEffectTraits>::VertexShaderBytecode)) == NormalMapEffectTraits::VertexShaderCount, "array/max mismatch");
+    static_assert(static_cast<int>(std::size(EffectBase<NormalMapEffectTraits>::PixelShaderBytecode)) == NormalMapEffectTraits::PixelShaderCount, "array/max mismatch");
+    static_assert(static_cast<int>(std::size(EffectBase<NormalMapEffectTraits>::PixelShaderIndices)) == NormalMapEffectTraits::ShaderPermutationCount, "array/max mismatch");
 
     lights.InitializeConstants(constants.specularColorAndPower, constants.lightDirection, constants.lightDiffuseColor, constants.lightSpecularColor);
 }
 
 
-int NormalMapEffect::Impl::GetCurrentShaderPermutation() const
+int NormalMapEffect::Impl::GetCurrentShaderPermutation() const noexcept
 {
     int permutation = 0;
 
@@ -173,9 +210,15 @@ int NormalMapEffect::Impl::GetCurrentShaderPermutation() const
     }
 
     // Specular map?
-    if (specularTexture)
+    if (!specularTexture)
     {
         permutation += 4;
+    }
+
+    if (biasedVertexNormals)
+    {
+        // Compressed normals need to be scaled and biased in the vertex shader.
+        permutation += 8;
     }
 
     return permutation;
@@ -194,7 +237,7 @@ void NormalMapEffect::Impl::Apply(_In_ ID3D11DeviceContext* deviceContext)
 
     // Set the textures
     ID3D11ShaderResourceView* textures[] = { texture.Get(), specularTexture.Get(), normalTexture.Get()};
-    deviceContext->PSSetShaderResources(0, _countof(textures), textures);
+    deviceContext->PSSetShaderResources(0, static_cast<UINT>(std::size(textures)), textures);
     
     // Set shaders and constant buffers.
     ApplyShaders(deviceContext, GetCurrentShaderPermutation());
@@ -203,20 +246,20 @@ void NormalMapEffect::Impl::Apply(_In_ ID3D11DeviceContext* deviceContext)
 
 // Public constructor.
 NormalMapEffect::NormalMapEffect(_In_ ID3D11Device* device)
-  : pImpl(new Impl(device))
+  : pImpl(std::make_unique<Impl>(device))
 {
 }
 
 
 // Move constructor.
-NormalMapEffect::NormalMapEffect(NormalMapEffect&& moveFrom)
+NormalMapEffect::NormalMapEffect(NormalMapEffect&& moveFrom) noexcept
   : pImpl(std::move(moveFrom.pImpl))
 {
 }
 
 
 // Move assignment.
-NormalMapEffect& NormalMapEffect::operator= (NormalMapEffect&& moveFrom)
+NormalMapEffect& NormalMapEffect::operator= (NormalMapEffect&& moveFrom) noexcept
 {
     pImpl = std::move(moveFrom.pImpl);
     return *this;
@@ -229,6 +272,7 @@ NormalMapEffect::~NormalMapEffect()
 }
 
 
+// IEffect methods.
 void NormalMapEffect::Apply(_In_ ID3D11DeviceContext* deviceContext)
 {
     pImpl->Apply(deviceContext);
@@ -241,6 +285,7 @@ void NormalMapEffect::GetVertexShaderBytecode(_Out_ void const** pShaderByteCode
 }
 
 
+// Camera settings.
 void XM_CALLCONV NormalMapEffect::SetWorld(FXMMATRIX value)
 {
     pImpl->matrices.world = value;
@@ -275,6 +320,7 @@ void XM_CALLCONV NormalMapEffect::SetMatrices(FXMMATRIX world, CXMMATRIX view, C
 }
 
 
+// Material settings.
 void XM_CALLCONV NormalMapEffect::SetDiffuseColor(FXMVECTOR value)
 {
     pImpl->lights.diffuseColor = value;
@@ -337,19 +383,19 @@ void XM_CALLCONV NormalMapEffect::SetColorAndAlpha(FXMVECTOR value)
 }
 
 
+// Light settings.
 void NormalMapEffect::SetLightingEnabled(bool value)
 {
     if (!value)
     {
-        throw std::exception("NormalMapEffect does not support turning off lighting");
+        throw std::invalid_argument("NormalMapEffect does not support turning off lighting");
     }
 }
 
 
-void NormalMapEffect::SetPerPixelLighting(bool value)
+void NormalMapEffect::SetPerPixelLighting(bool)
 {
     // Unsupported interface method.
-    (value);
 }
 
 
@@ -395,6 +441,7 @@ void NormalMapEffect::EnableDefaultLighting()
 }
 
 
+// Fog settings.
 void NormalMapEffect::SetFogEnabled(bool value)
 {
     pImpl->fog.enabled = value;
@@ -427,12 +474,14 @@ void XM_CALLCONV NormalMapEffect::SetFogColor(FXMVECTOR value)
 }
 
 
+// Vertex color setting.
 void NormalMapEffect::SetVertexColorEnabled(bool value)
 {
     pImpl->vertexColorEnabled = value;
 }
 
 
+// Texture settings.
 void NormalMapEffect::SetTexture(_In_opt_ ID3D11ShaderResourceView* value)
 {
     pImpl->texture = value;
@@ -448,4 +497,11 @@ void NormalMapEffect::SetNormalTexture(_In_opt_ ID3D11ShaderResourceView* value)
 void NormalMapEffect::SetSpecularTexture(_In_opt_ ID3D11ShaderResourceView* value)
 {
     pImpl->specularTexture = value;
+}
+
+
+// Normal compression settings.
+void NormalMapEffect::SetBiasedVertexNormals(bool value)
+{
+    pImpl->biasedVertexNormals = value;
 }

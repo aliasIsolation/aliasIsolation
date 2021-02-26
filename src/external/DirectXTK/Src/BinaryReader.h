@@ -1,14 +1,11 @@
 //--------------------------------------------------------------------------------------
 // File: BinaryReader.h
 //
-// THIS CODE AND INFORMATION IS PROVIDED "AS IS" WITHOUT WARRANTY OF
-// ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED TO
-// THE IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A
-// PARTICULAR PURPOSE.
-//
 // Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License.
 //
 // http://go.microsoft.com/fwlink/?LinkId=248929
+// http://go.microsoft.com/fwlink/?LinkID=615561
 //--------------------------------------------------------------------------------------
 
 #pragma once
@@ -27,8 +24,8 @@ namespace DirectX
     class BinaryReader
     {
     public:
-        explicit BinaryReader(_In_z_ wchar_t const* fileName);
-        BinaryReader(_In_reads_bytes_(dataSize) uint8_t const* dataBlob, size_t dataSize);
+        explicit BinaryReader(_In_z_ wchar_t const* fileName) noexcept(false);
+        BinaryReader(_In_reads_bytes_(dataSize) uint8_t const* dataBlob, size_t dataSize) noexcept;
 
         BinaryReader(BinaryReader const&) = delete;
         BinaryReader& operator= (BinaryReader const&) = delete;
@@ -51,7 +48,7 @@ namespace DirectX
                 throw std::overflow_error("ReadArray");
 
             if (newPos > mEnd)
-                throw std::exception("End of file");
+                throw std::runtime_error("End of file");
 
             auto result = reinterpret_cast<T const*>(mPos);
 

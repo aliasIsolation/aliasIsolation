@@ -1,12 +1,8 @@
 //--------------------------------------------------------------------------------------
 // File: CommonStates.cpp
 //
-// THIS CODE AND INFORMATION IS PROVIDED "AS IS" WITHOUT WARRANTY OF
-// ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED TO
-// THE IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A
-// PARTICULAR PURPOSE.
-//
 // Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License.
 //
 // http://go.microsoft.com/fwlink/?LinkId=248929
 //--------------------------------------------------------------------------------------
@@ -26,8 +22,8 @@ using Microsoft::WRL::ComPtr;
 class CommonStates::Impl
 {
 public:
-    Impl(_In_ ID3D11Device* device)
-      : device(device)
+    Impl(_In_ ID3D11Device* device) noexcept
+      : mDevice(device)
     { }
 
     HRESULT CreateBlendState(D3D11_BLEND srcBlend, D3D11_BLEND destBlend, _Out_ ID3D11BlendState** pResult);
@@ -35,7 +31,7 @@ public:
     HRESULT CreateRasterizerState(D3D11_CULL_MODE cullMode, D3D11_FILL_MODE fillMode, _Out_ ID3D11RasterizerState** pResult);
     HRESULT CreateSamplerState(D3D11_FILTER filter, D3D11_TEXTURE_ADDRESS_MODE addressMode, _Out_ ID3D11SamplerState** pResult);
 
-    ComPtr<ID3D11Device> device;
+    ComPtr<ID3D11Device> mDevice;
 
     ComPtr<ID3D11BlendState> opaque;
     ComPtr<ID3D11BlendState> alphaBlend;
@@ -82,7 +78,7 @@ HRESULT CommonStates::Impl::CreateBlendState(D3D11_BLEND srcBlend, D3D11_BLEND d
 
     desc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
 
-    HRESULT hr = device->CreateBlendState(&desc, pResult);
+    HRESULT hr = mDevice->CreateBlendState(&desc, pResult);
 
     if (SUCCEEDED(hr))
         SetDebugObjectName(*pResult, "DirectXTK:CommonStates");
@@ -96,11 +92,11 @@ HRESULT CommonStates::Impl::CreateDepthStencilState(bool enable, bool writeEnabl
 {
     D3D11_DEPTH_STENCIL_DESC desc = {};
 
-    desc.DepthEnable = enable;
+    desc.DepthEnable = enable ? TRUE : FALSE;
     desc.DepthWriteMask = writeEnable ? D3D11_DEPTH_WRITE_MASK_ALL : D3D11_DEPTH_WRITE_MASK_ZERO;
     desc.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
 
-    desc.StencilEnable = false;
+    desc.StencilEnable = FALSE;
     desc.StencilReadMask = D3D11_DEFAULT_STENCIL_READ_MASK;
     desc.StencilWriteMask = D3D11_DEFAULT_STENCIL_WRITE_MASK;
 
@@ -111,7 +107,7 @@ HRESULT CommonStates::Impl::CreateDepthStencilState(bool enable, bool writeEnabl
 
     desc.BackFace = desc.FrontFace;
 
-    HRESULT hr = device->CreateDepthStencilState(&desc, pResult);
+    HRESULT hr = mDevice->CreateDepthStencilState(&desc, pResult);
 
     if (SUCCEEDED(hr))
         SetDebugObjectName(*pResult, "DirectXTK:CommonStates");
@@ -127,10 +123,10 @@ HRESULT CommonStates::Impl::CreateRasterizerState(D3D11_CULL_MODE cullMode, D3D1
 
     desc.CullMode = cullMode;
     desc.FillMode = fillMode;
-    desc.DepthClipEnable = true;
-    desc.MultisampleEnable = true;
+    desc.DepthClipEnable = TRUE;
+    desc.MultisampleEnable = TRUE;
 
-    HRESULT hr = device->CreateRasterizerState(&desc, pResult);
+    HRESULT hr = mDevice->CreateRasterizerState(&desc, pResult);
 
     if (SUCCEEDED(hr))
         SetDebugObjectName(*pResult, "DirectXTK:CommonStates");
@@ -150,12 +146,12 @@ HRESULT CommonStates::Impl::CreateSamplerState(D3D11_FILTER filter, D3D11_TEXTUR
     desc.AddressV = addressMode;
     desc.AddressW = addressMode;
 
-    desc.MaxAnisotropy = (device->GetFeatureLevel() > D3D_FEATURE_LEVEL_9_1) ? D3D11_MAX_MAXANISOTROPY : 2;
+    desc.MaxAnisotropy = (mDevice->GetFeatureLevel() > D3D_FEATURE_LEVEL_9_1) ? D3D11_MAX_MAXANISOTROPY : 2u;
     
     desc.MaxLOD = FLT_MAX;
     desc.ComparisonFunc = D3D11_COMPARISON_NEVER;
 
-    HRESULT hr = device->CreateSamplerState(&desc, pResult);
+    HRESULT hr = mDevice->CreateSamplerState(&desc, pResult);
 
     if (SUCCEEDED(hr))
         SetDebugObjectName(*pResult, "DirectXTK:CommonStates");
@@ -176,14 +172,14 @@ CommonStates::CommonStates(_In_ ID3D11Device* device)
 
 
 // Move constructor.
-CommonStates::CommonStates(CommonStates&& moveFrom)
+CommonStates::CommonStates(CommonStates&& moveFrom) noexcept
   : pImpl(std::move(moveFrom.pImpl))
 {
 }
 
 
 // Move assignment.
-CommonStates& CommonStates::operator= (CommonStates&& moveFrom)
+CommonStates& CommonStates::operator= (CommonStates&& moveFrom) noexcept
 {
     pImpl = std::move(moveFrom.pImpl);
     return *this;

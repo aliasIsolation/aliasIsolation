@@ -16,10 +16,14 @@
 *.lastbuildstate
 *.ilk
 *.VC.db
+*.nupkg
+.vs
 Bin
-/Src/Shaders/Compiled/XboxOne*.inc
-/Src/Shaders/Compiled/XboxOne*.pdb
+packages
+/Src/Shaders/Compiled/*.inc
+/Src/Shaders/Compiled/*.pdb
 /ipch
 /MakeSpriteFont/obj
 /Tests
 /wiki
+/out

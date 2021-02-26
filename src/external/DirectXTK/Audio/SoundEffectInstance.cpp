@@ -1,14 +1,11 @@
 //--------------------------------------------------------------------------------------
 // File: SoundEffectInstance.cpp
 //
-// THIS CODE AND INFORMATION IS PROVIDED "AS IS" WITHOUT WARRANTY OF
-// ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED TO
-// THE IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A
-// PARTICULAR PURPOSE.
-//
 // Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License.
 //
 // http://go.microsoft.com/fwlink/?LinkId=248929
+// http://go.microsoft.com/fwlink/?LinkID=615561
 //--------------------------------------------------------------------------------------
 
 #include "pch.h"
@@ -25,85 +22,98 @@ using namespace DirectX;
 class SoundEffectInstance::Impl : public IVoiceNotify
 {
 public:
-    Impl( _In_ AudioEngine* engine, _In_ SoundEffect* effect, SOUND_EFFECT_INSTANCE_FLAGS flags ) :
+    Impl(_In_ AudioEngine* engine, _In_ SoundEffect* effect, SOUND_EFFECT_INSTANCE_FLAGS flags) :
         mBase(),
-        mEffect( effect ),
-        mWaveBank( nullptr ),
-        mIndex( 0 ),
-        mLooped( false )
+        mEffect(effect),
+        mWaveBank(nullptr),
+        mIndex(0),
+        mLooped(false)
     {
-        assert( engine != 0 );
-        engine->RegisterNotify( this, false );
+        assert(engine != nullptr);
+        engine->RegisterNotify(this, false);
 
-        assert( mEffect != 0 );
-        mBase.Initialize( engine, effect->GetFormat(), flags );
+        assert(mEffect != nullptr);
+        mBase.Initialize(engine, effect->GetFormat(), flags);
     }
 
-    Impl( _In_ AudioEngine* engine, _In_ WaveBank* waveBank, uint32_t index, SOUND_EFFECT_INSTANCE_FLAGS flags ) :
+    Impl(_In_ AudioEngine* engine, _In_ WaveBank* waveBank, uint32_t index, SOUND_EFFECT_INSTANCE_FLAGS flags) :
         mBase(),
-        mEffect( nullptr ),
-        mWaveBank( waveBank ),
-        mIndex( index ),
-        mLooped( false )
+        mEffect(nullptr),
+        mWaveBank(waveBank),
+        mIndex(index),
+        mLooped(false)
     {
-        assert( engine != 0 );
-        engine->RegisterNotify( this, false );
+        assert(engine != nullptr);
+        engine->RegisterNotify(this, false);
 
-        char buff[64];
-        auto wfx = reinterpret_cast<WAVEFORMATEX*>( buff );
-        assert( mWaveBank != 0 );
-        mBase.Initialize( engine, mWaveBank->GetFormat( index, wfx, 64 ), flags );
+        char buff[64] = {};
+        auto wfx = reinterpret_cast<WAVEFORMATEX*>(buff);
+        assert(mWaveBank != nullptr);
+        mBase.Initialize(engine, mWaveBank->GetFormat(index, wfx, sizeof(buff)), flags);
     }
 
-    virtual ~Impl()
+    Impl(Impl&&) = default;
+    Impl& operator= (Impl&&) = default;
+
+    Impl(Impl const&) = delete;
+    Impl& operator= (Impl const&) = delete;
+
+    ~Impl() override
     {
         mBase.DestroyVoice();
 
-        if ( mBase.engine )
+        if (mBase.engine)
         {
-            mBase.engine->UnregisterNotify( this, false, false );
+            mBase.engine->UnregisterNotify(this, false, false);
             mBase.engine = nullptr;
         }
     }
 
-    void Play( bool loop );
+    void Play(bool loop);
 
     // IVoiceNotify
-    virtual void __cdecl OnBufferEnd() override
+    void __cdecl OnBufferEnd() override
     {
         // We don't register for this notification for SoundEffectInstances, so this should not be invoked
-        assert( false );
+        assert(false);
     }
 
-    virtual void __cdecl OnCriticalError() override
+    void __cdecl OnCriticalError() override
     {
         mBase.OnCriticalError();
     }
 
-    virtual void __cdecl OnReset() override
+    void __cdecl OnReset() override
     {
         mBase.OnReset();
     }
 
-    virtual void __cdecl OnUpdate() override
+    void __cdecl OnUpdate() override
     {
         // We do not register for update notification
         assert(false);
     }
 
-    virtual void __cdecl OnDestroyEngine() override
+    void __cdecl OnDestroyEngine() noexcept override
     {
         mBase.OnDestroy();
     }
 
-    virtual void __cdecl OnTrim() override
+    void __cdecl OnTrim() override
     {
         mBase.OnTrim();
     }
 
-    virtual void __cdecl GatherStatistics( AudioStatistics& stats ) const override
+    void __cdecl GatherStatistics(AudioStatistics& stats) const noexcept override
     {
         mBase.GatherStatistics(stats);
+    }
+
+    void __cdecl OnDestroyParent() noexcept override
+    {
+        mBase.OnDestroy();
+        mWaveBank = nullptr;
+        mEffect = nullptr;
     }
 
     SoundEffectInstanceBase         mBase;
@@ -114,59 +124,59 @@ public:
 };
 
 
-void SoundEffectInstance::Impl::Play( bool loop )
+void SoundEffectInstance::Impl::Play(bool loop)
 {
-    if ( !mBase.voice )
+    if (!mBase.voice)
     {
-        if ( mWaveBank )
+        if (mWaveBank)
         {
-            char buff[64];
-            auto wfx = reinterpret_cast<WAVEFORMATEX*>( buff );
-            mBase.AllocateVoice( mWaveBank->GetFormat( mIndex, wfx, 64) );
+            char buff[64] = {};
+            auto wfx = reinterpret_cast<WAVEFORMATEX*>(buff);
+            mBase.AllocateVoice(mWaveBank->GetFormat(mIndex, wfx, sizeof(buff)));
         }
         else
         {
-            assert( mEffect != 0 );
-            mBase.AllocateVoice( mEffect->GetFormat() );
+            assert(mEffect != nullptr);
+            mBase.AllocateVoice(mEffect->GetFormat());
         }
     }
 
-    if ( !mBase.Play() )
+    if (!mBase.Play())
         return;
 
     // Submit audio data for STOPPED -> PLAYING state transition
-    XAUDIO2_BUFFER buffer;
+    XAUDIO2_BUFFER buffer = {};
 
-#if defined(_XBOX_ONE) || (_WIN32_WINNT < _WIN32_WINNT_WIN8) || (_WIN32_WINNT >= _WIN32_WINNT_WIN10)
+#ifdef DIRECTX_ENABLE_XWMA
 
     bool iswma = false;
-    XAUDIO2_BUFFER_WMA wmaBuffer;
-    if ( mWaveBank )
+    XAUDIO2_BUFFER_WMA wmaBuffer = {};
+    if (mWaveBank)
     {
-        iswma = mWaveBank->FillSubmitBuffer( mIndex, buffer, wmaBuffer );
+        iswma = mWaveBank->FillSubmitBuffer(mIndex, buffer, wmaBuffer);
     }
     else
     {
-        assert( mEffect != 0 );
-        iswma = mEffect->FillSubmitBuffer( buffer, wmaBuffer );
+        assert(mEffect != nullptr);
+        iswma = mEffect->FillSubmitBuffer(buffer, wmaBuffer);
     }
 
-#else
+#else // !xWMA
 
-    if ( mWaveBank )
+    if (mWaveBank)
     {
-        mWaveBank->FillSubmitBuffer( mIndex, buffer );
+        mWaveBank->FillSubmitBuffer(mIndex, buffer);
     }
     else
     {
-        assert( mEffect != 0 );
-        mEffect->FillSubmitBuffer( buffer );
+        assert(mEffect != nullptr);
+        mEffect->FillSubmitBuffer(buffer);
     }
 
 #endif
-    
+
     buffer.Flags = XAUDIO2_END_OF_STREAM;
-    if ( loop )
+    if (loop)
     {
         mLooped = true;
         buffer.LoopCount = XAUDIO2_LOOP_INFINITE;
@@ -179,33 +189,33 @@ void SoundEffectInstance::Impl::Play( bool loop )
     buffer.pContext = nullptr;
 
     HRESULT hr;
-#if defined(_XBOX_ONE) || (_WIN32_WINNT < _WIN32_WINNT_WIN8) || (_WIN32_WINNT >= _WIN32_WINNT_WIN10)
-    if ( iswma )
+    #ifdef DIRECTX_ENABLE_XWMA
+    if (iswma)
     {
-        hr = mBase.voice->SubmitSourceBuffer( &buffer, &wmaBuffer );
+        hr = mBase.voice->SubmitSourceBuffer(&buffer, &wmaBuffer);
     }
     else
-#endif
+    #endif
     {
-        hr = mBase.voice->SubmitSourceBuffer( &buffer, nullptr );
+        hr = mBase.voice->SubmitSourceBuffer(&buffer, nullptr);
     }
 
-    if ( FAILED(hr) )
+    if (FAILED(hr))
     {
-#ifdef _DEBUG
-        DebugTrace( "ERROR: SoundEffectInstance failed (%08X) when submitting buffer:\n", hr );
+    #ifdef _DEBUG
+        DebugTrace("ERROR: SoundEffectInstance failed (%08X) when submitting buffer:\n", static_cast<unsigned int>(hr));
 
-        char buff[64];
-        auto wfx = ( mWaveBank ) ? mWaveBank->GetFormat( mIndex, reinterpret_cast<WAVEFORMATEX*>( buff ), 64 )
-                                 : mEffect->GetFormat();
+        char buff[64] = {};
+        auto wfx = (mWaveBank) ? mWaveBank->GetFormat(mIndex, reinterpret_cast<WAVEFORMATEX*>(buff), sizeof(buff))
+            : mEffect->GetFormat();
 
-        size_t length = ( mWaveBank ) ? mWaveBank->GetSampleSizeInBytes( mIndex ) : mEffect->GetSampleSizeInBytes();
+        size_t length = (mWaveBank) ? mWaveBank->GetSampleSizeInBytes(mIndex) : mEffect->GetSampleSizeInBytes();
 
-        DebugTrace( "\tFormat Tag %u, %u channels, %u-bit, %u Hz, %Iu bytes\n", wfx->wFormatTag, 
-                    wfx->nChannels, wfx->wBitsPerSample, wfx->nSamplesPerSec, length );
-#endif
-        mBase.Stop( true, mLooped );
-        throw std::exception( "SubmitSourceBuffer" );
+        DebugTrace("\tFormat Tag %u, %u channels, %u-bit, %u Hz, %zu bytes\n",
+            wfx->wFormatTag, wfx->nChannels, wfx->wBitsPerSample, wfx->nSamplesPerSec, length);
+    #endif
+        mBase.Stop(true, mLooped);
+        throw std::runtime_error("SubmitSourceBuffer");
     }
 }
 
@@ -216,27 +226,27 @@ void SoundEffectInstance::Impl::Play( bool loop )
 
 // Private constructors
 _Use_decl_annotations_
-SoundEffectInstance::SoundEffectInstance( AudioEngine* engine, SoundEffect* effect, SOUND_EFFECT_INSTANCE_FLAGS flags ) :
-    pImpl( new Impl( engine, effect, flags ) )
+SoundEffectInstance::SoundEffectInstance(AudioEngine* engine, SoundEffect* effect, SOUND_EFFECT_INSTANCE_FLAGS flags) :
+    pImpl(std::make_unique<Impl>(engine, effect, flags))
 {
 }
 
 _Use_decl_annotations_
-SoundEffectInstance::SoundEffectInstance( AudioEngine* engine, WaveBank* waveBank, int index, SOUND_EFFECT_INSTANCE_FLAGS flags ) :
-    pImpl( new Impl( engine, waveBank, index, flags ) )
+SoundEffectInstance::SoundEffectInstance(AudioEngine* engine, WaveBank* waveBank, unsigned int index, SOUND_EFFECT_INSTANCE_FLAGS flags) :
+    pImpl(std::make_unique<Impl>(engine, waveBank, index, flags))
 {
 }
 
 
 // Move constructor.
-SoundEffectInstance::SoundEffectInstance(SoundEffectInstance&& moveFrom)
-  : pImpl(std::move(moveFrom.pImpl))
+SoundEffectInstance::SoundEffectInstance(SoundEffectInstance&& moveFrom) noexcept
+    : pImpl(std::move(moveFrom.pImpl))
 {
 }
 
 
 // Move assignment.
-SoundEffectInstance& SoundEffectInstance::operator= (SoundEffectInstance&& moveFrom)
+SoundEffectInstance& SoundEffectInstance::operator= (SoundEffectInstance&& moveFrom) noexcept
 {
     pImpl = std::move(moveFrom.pImpl);
     return *this;
@@ -246,17 +256,17 @@ SoundEffectInstance& SoundEffectInstance::operator= (SoundEffectInstance&& moveF
 // Public destructor.
 SoundEffectInstance::~SoundEffectInstance()
 {
-    if( pImpl )
+    if (pImpl)
     {
-        if ( pImpl->mWaveBank )
+        if (pImpl->mWaveBank)
         {
-            pImpl->mWaveBank->UnregisterInstance( this );
+            pImpl->mWaveBank->UnregisterInstance(pImpl.get());
             pImpl->mWaveBank = nullptr;
         }
 
-        if ( pImpl->mEffect )
+        if (pImpl->mEffect)
         {
-            pImpl->mEffect->UnregisterInstance( this );
+            pImpl->mEffect->UnregisterInstance(pImpl.get());
             pImpl->mEffect = nullptr;
         }
     }
@@ -264,19 +274,19 @@ SoundEffectInstance::~SoundEffectInstance()
 
 
 // Public methods.
-void SoundEffectInstance::Play( bool loop )
+void SoundEffectInstance::Play(bool loop)
 {
-    pImpl->Play( loop );
+    pImpl->Play(loop);
 }
 
 
-void SoundEffectInstance::Stop( bool immediate )
+void SoundEffectInstance::Stop(bool immediate) noexcept
 {
-    pImpl->mBase.Stop( immediate, pImpl->mLooped );
+    pImpl->mBase.Stop(immediate, pImpl->mLooped);
 }
 
 
-void SoundEffectInstance::Pause()
+void SoundEffectInstance::Pause() noexcept
 {
     pImpl->mBase.Pause();
 }
@@ -288,47 +298,44 @@ void SoundEffectInstance::Resume()
 }
 
 
-void SoundEffectInstance::SetVolume( float volume )
+void SoundEffectInstance::SetVolume(float volume)
 {
-    pImpl->mBase.SetVolume( volume );
+    pImpl->mBase.SetVolume(volume);
 }
 
 
-void SoundEffectInstance::SetPitch( float pitch )
+void SoundEffectInstance::SetPitch(float pitch)
 {
-    pImpl->mBase.SetPitch( pitch );
+    pImpl->mBase.SetPitch(pitch);
 }
 
 
-void SoundEffectInstance::SetPan( float pan )
+void SoundEffectInstance::SetPan(float pan)
 {
-    pImpl->mBase.SetPan( pan );
+    pImpl->mBase.SetPan(pan);
 }
 
 
-void SoundEffectInstance::Apply3D( const AudioListener& listener, const AudioEmitter& emitter, bool rhcoords )
+void SoundEffectInstance::Apply3D(const AudioListener& listener, const AudioEmitter& emitter, bool rhcoords)
 {
-    pImpl->mBase.Apply3D( listener, emitter, rhcoords );
+    pImpl->mBase.Apply3D(listener, emitter, rhcoords);
 }
 
 
 // Public accessors.
-bool SoundEffectInstance::IsLooped() const
+bool SoundEffectInstance::IsLooped() const noexcept
 {
     return pImpl->mLooped;
 }
 
 
-SoundState SoundEffectInstance::GetState()
+SoundState SoundEffectInstance::GetState() noexcept
 {
-    return pImpl->mBase.GetState( true );
+    return pImpl->mBase.GetState(true);
 }
 
 
-// Notifications.
-void SoundEffectInstance::OnDestroyParent()
+IVoiceNotify* SoundEffectInstance::GetVoiceNotify() const noexcept
 {
-    pImpl->mBase.OnDestroy();
-    pImpl->mWaveBank = nullptr;
-    pImpl->mEffect = nullptr;
+    return pImpl.get();
 }

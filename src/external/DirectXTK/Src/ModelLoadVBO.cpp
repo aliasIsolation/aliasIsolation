@@ -1,25 +1,19 @@
 //--------------------------------------------------------------------------------------
 // File: ModelLoadVBO.cpp
 //
-// THIS CODE AND INFORMATION IS PROVIDED "AS IS" WITHOUT WARRANTY OF
-// ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED TO
-// THE IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A
-// PARTICULAR PURPOSE.
-//
 // Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License.
 //
 // http://go.microsoft.com/fwlink/?LinkId=248929
 //--------------------------------------------------------------------------------------
 
 #include "pch.h"
 #include "Model.h"
-
+#include "DirectXHelpers.h"
 #include "Effects.h"
 #include "VertexTypes.h"
-
-#include "DirectXHelpers.h"
-#include "PlatformHelpers.h"
 #include "BinaryReader.h"
+#include "PlatformHelpers.h"
 
 #include "vbo.h"
 
@@ -41,7 +35,8 @@ namespace
         UNREFERENCED_PARAMETER(Parameter);
         UNREFERENCED_PARAMETER(lpContext);
 
-        g_vbdecl = std::make_shared<std::vector<D3D11_INPUT_ELEMENT_DESC>>(VertexPositionNormalTexture::InputElements,
+        g_vbdecl = std::make_shared<std::vector<D3D11_INPUT_ELEMENT_DESC>>(
+            VertexPositionNormalTexture::InputElements,
             VertexPositionNormalTexture::InputElements + VertexPositionNormalTexture::InputElementCount);
 
         return TRUE;
@@ -51,34 +46,59 @@ namespace
 
 //--------------------------------------------------------------------------------------
 _Use_decl_annotations_
-std::unique_ptr<Model> DirectX::Model::CreateFromVBO(ID3D11Device* d3dDevice, const uint8_t* meshData, size_t dataSize,
-                                                     std::shared_ptr<IEffect> ieffect, bool ccw, bool pmalpha)
+std::unique_ptr<Model> DirectX::Model::CreateFromVBO(
+    ID3D11Device* device,
+    const uint8_t* meshData, size_t dataSize,
+    std::shared_ptr<IEffect> ieffect,
+    ModelLoaderFlags flags)
 {
     if (!InitOnceExecuteOnce(&g_InitOnce, InitializeDecl, nullptr, nullptr))
-        throw std::exception("One-time initialization failed");
+        throw std::system_error(std::error_code(static_cast<int>(GetLastError()), std::system_category()), "InitOnceExecuteOnce");
 
-    if ( !d3dDevice || !meshData )
-        throw std::exception("Device and meshData cannot be null");
+    if (!device || !meshData)
+        throw std::invalid_argument("Device and meshData cannot be null");
 
     // File Header
-    if ( dataSize < sizeof(VBO::header_t) )
-        throw std::exception("End of file");
-    auto header = reinterpret_cast<const VBO::header_t*>( meshData );
+    if (dataSize < sizeof(VBO::header_t))
+        throw std::runtime_error("End of file");
+    auto header = reinterpret_cast<const VBO::header_t*>(meshData);
 
-    if ( !header->numVertices || !header->numIndices )
-        throw std::exception("No vertices or indices found");
+    if (!header->numVertices || !header->numIndices)
+        throw std::runtime_error("No vertices or indices found");
 
-    size_t vertSize = sizeof(VertexPositionNormalTexture) * header->numVertices;
+    uint64_t sizeInBytes = uint64_t(header->numVertices) * sizeof(VertexPositionNormalTexture);
+
+    if (sizeInBytes > UINT32_MAX)
+        throw std::runtime_error("VB too large");
+
+    if (!(flags & ModelLoader_AllowLargeModels))
+    {
+        if (sizeInBytes > uint64_t(D3D11_REQ_RESOURCE_SIZE_IN_MEGABYTES_EXPRESSION_A_TERM * 1024u * 1024u))
+            throw std::runtime_error("VB too large for DirectX 11");
+    }
+
+    auto vertSize = static_cast<size_t>(sizeInBytes);
 
     if (dataSize < (vertSize + sizeof(VBO::header_t)))
-        throw std::exception("End of file");
-    auto verts = reinterpret_cast<const VertexPositionNormalTexture*>( meshData + sizeof(VBO::header_t) );
+        throw std::runtime_error("End of file");
+    auto verts = reinterpret_cast<const VertexPositionNormalTexture*>(meshData + sizeof(VBO::header_t));
 
-    size_t indexSize = sizeof(uint16_t) * header->numIndices;
+    sizeInBytes = uint64_t(header->numIndices) * sizeof(uint16_t);
+
+    if (sizeInBytes > UINT32_MAX)
+        throw std::runtime_error("IB too large");
+
+    if (!(flags & ModelLoader_AllowLargeModels))
+    {
+        if (sizeInBytes > uint64_t(D3D11_REQ_RESOURCE_SIZE_IN_MEGABYTES_EXPRESSION_A_TERM * 1024u * 1024u))
+            throw std::runtime_error("IB too large for DirectX 11");
+    }
+
+    auto indexSize = static_cast<size_t>(sizeInBytes);
 
     if (dataSize < (sizeof(VBO::header_t) + vertSize + indexSize))
-        throw std::exception("End of file");
-    auto indices = reinterpret_cast<const uint16_t*>( meshData + sizeof(VBO::header_t) + vertSize );
+        throw std::runtime_error("End of file");
+    auto indices = reinterpret_cast<const uint16_t*>(meshData + sizeof(VBO::header_t) + vertSize);
 
     // Create vertex buffer
     ComPtr<ID3D11Buffer> vb;
@@ -88,12 +108,11 @@ std::unique_ptr<Model> DirectX::Model::CreateFromVBO(ID3D11Device* d3dDevice, co
         desc.ByteWidth = static_cast<UINT>(vertSize);
         desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 
-        D3D11_SUBRESOURCE_DATA initData = {};
-        initData.pSysMem = verts;
+        D3D11_SUBRESOURCE_DATA initData = { verts, 0, 0 };
 
         ThrowIfFailed(
-            d3dDevice->CreateBuffer(&desc, &initData, vb.GetAddressOf())
-            );
+            device->CreateBuffer(&desc, &initData, vb.GetAddressOf())
+        );
 
         SetDebugObjectName(vb.Get(), "ModelVBO");
     }
@@ -106,12 +125,11 @@ std::unique_ptr<Model> DirectX::Model::CreateFromVBO(ID3D11Device* d3dDevice, co
         desc.ByteWidth = static_cast<UINT>(indexSize);
         desc.BindFlags = D3D11_BIND_INDEX_BUFFER;
 
-        D3D11_SUBRESOURCE_DATA initData = {};
-        initData.pSysMem = indices;
+        D3D11_SUBRESOURCE_DATA initData = { indices, 0, 0 };
 
         ThrowIfFailed(
-            d3dDevice->CreateBuffer(&desc, &initData, ib.GetAddressOf())
-            );
+            device->CreateBuffer(&desc, &initData, ib.GetAddressOf())
+        );
 
         SetDebugObjectName(ib.Get(), "ModelVBO");
     }
@@ -119,7 +137,7 @@ std::unique_ptr<Model> DirectX::Model::CreateFromVBO(ID3D11Device* d3dDevice, co
     // Create input layout and effect
     if (!ieffect)
     {
-        auto effect = std::make_shared<BasicEffect>(d3dDevice);
+        auto effect = std::make_shared<BasicEffect>(device);
         effect->EnableDefaultLighting();
         effect->SetLightingEnabled(true);
 
@@ -127,25 +145,17 @@ std::unique_ptr<Model> DirectX::Model::CreateFromVBO(ID3D11Device* d3dDevice, co
     }
 
     ComPtr<ID3D11InputLayout> il;
-    {
-        void const* shaderByteCode;
-        size_t byteCodeLength;
 
-        ieffect->GetVertexShaderBytecode(&shaderByteCode, &byteCodeLength);
+    ThrowIfFailed(
+        CreateInputLayoutFromEffect<VertexPositionNormalTexture>(device, ieffect.get(), il.GetAddressOf())
+    );
 
-        ThrowIfFailed(
-            d3dDevice->CreateInputLayout(VertexPositionNormalTexture::InputElements,
-            VertexPositionNormalTexture::InputElementCount,
-            shaderByteCode, byteCodeLength,
-            il.GetAddressOf()));
-
-        SetDebugObjectName(il.Get(), "ModelVBO");
-    }
+    SetDebugObjectName(il.Get(), "ModelVBO");
 
     auto part = new ModelMeshPart();
     part->indexCount = header->numIndices;
     part->startIndex = 0;
-    part->vertexStride = static_cast<UINT>( sizeof(VertexPositionNormalTexture) );
+    part->vertexStride = static_cast<UINT>(sizeof(VertexPositionNormalTexture));
     part->inputLayout = il;
     part->indexBuffer = ib;
     part->vertexBuffer = vb;
@@ -153,34 +163,38 @@ std::unique_ptr<Model> DirectX::Model::CreateFromVBO(ID3D11Device* d3dDevice, co
     part->vbDecl = g_vbdecl;
 
     auto mesh = std::make_shared<ModelMesh>();
-    mesh->ccw = ccw;
-    mesh->pmalpha = pmalpha;
+    mesh->ccw = (flags & ModelLoader_CounterClockwise) != 0;
+    mesh->pmalpha = (flags & ModelLoader_PremultipledAlpha) != 0;
     BoundingSphere::CreateFromPoints(mesh->boundingSphere, header->numVertices, &verts->position, sizeof(VertexPositionNormalTexture));
     BoundingBox::CreateFromPoints(mesh->boundingBox, header->numVertices, &verts->position, sizeof(VertexPositionNormalTexture));
     mesh->meshParts.emplace_back(part);
 
-    std::unique_ptr<Model> model(new Model());
+    auto model = std::make_unique<Model>();
     model->meshes.emplace_back(mesh);
- 
+
     return model;
 }
 
 
 //--------------------------------------------------------------------------------------
 _Use_decl_annotations_
-std::unique_ptr<Model> DirectX::Model::CreateFromVBO(ID3D11Device* d3dDevice, const wchar_t* szFileName,
-                                                     std::shared_ptr<IEffect> ieffect, bool ccw, bool pmalpha)
+std::unique_ptr<Model> DirectX::Model::CreateFromVBO(
+    ID3D11Device* device,
+    const wchar_t* szFileName,
+    std::shared_ptr<IEffect> ieffect,
+    ModelLoaderFlags flags)
 {
     size_t dataSize = 0;
     std::unique_ptr<uint8_t[]> data;
-    HRESULT hr = BinaryReader::ReadEntireFile( szFileName, data, &dataSize );
-    if ( FAILED(hr) )
+    HRESULT hr = BinaryReader::ReadEntireFile(szFileName, data, &dataSize);
+    if (FAILED(hr))
     {
-        DebugTrace( "CreateFromVBO failed (%08X) loading '%ls'\n", hr, szFileName );
-        throw std::exception( "CreateFromVBO" );
+        DebugTrace("ERROR: CreateFromVBO failed (%08X) loading '%ls'\n",
+            static_cast<unsigned int>(hr), szFileName);
+        throw std::runtime_error("CreateFromVBO");
     }
 
-    auto model = CreateFromVBO( d3dDevice, data.get(), dataSize, ieffect, ccw, pmalpha );
+    auto model = CreateFromVBO(device, data.get(), dataSize, ieffect, flags);
 
     model->name = szFileName;
 

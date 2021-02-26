@@ -1,14 +1,11 @@
 //--------------------------------------------------------------------------------------
 // File: BinaryReader.cpp
 //
-// THIS CODE AND INFORMATION IS PROVIDED "AS IS" WITHOUT WARRANTY OF
-// ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED TO
-// THE IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A
-// PARTICULAR PURPOSE.
-//
 // Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License.
 //
 // http://go.microsoft.com/fwlink/?LinkId=248929
+// http://go.microsoft.com/fwlink/?LinkID=615561
 //--------------------------------------------------------------------------------------
 
 #include "pch.h"
@@ -19,15 +16,18 @@ using namespace DirectX;
 
 
 // Constructor reads from the filesystem.
-BinaryReader::BinaryReader(_In_z_ wchar_t const* fileName)
+BinaryReader::BinaryReader(_In_z_ wchar_t const* fileName) noexcept(false) :
+    mPos(nullptr),
+    mEnd(nullptr)
 {
     size_t dataSize;
 
     HRESULT hr = ReadEntireFile(fileName, mOwnedData, &dataSize);
-    if ( FAILED(hr) )
+    if (FAILED(hr))
     {
-        DebugTrace( "BinaryReader failed (%08X) to load '%ls'\n", hr, fileName );
-        throw std::exception( "BinaryReader" );
+        DebugTrace("ERROR: BinaryReader failed (%08X) to load '%ls'\n",
+            static_cast<unsigned int>(hr), fileName);
+        throw std::runtime_error("BinaryReader");
     }
 
     mPos = mOwnedData.get();
@@ -36,16 +36,24 @@ BinaryReader::BinaryReader(_In_z_ wchar_t const* fileName)
 
 
 // Constructor reads from an existing memory buffer.
-BinaryReader::BinaryReader(_In_reads_bytes_(dataSize) uint8_t const* dataBlob, size_t dataSize)
+BinaryReader::BinaryReader(_In_reads_bytes_(dataSize) uint8_t const* dataBlob, size_t dataSize) noexcept :
+    mPos(dataBlob),
+    mEnd(dataBlob + dataSize)
 {
-    mPos = dataBlob;
-    mEnd = dataBlob + dataSize;
 }
 
 
 // Reads from the filesystem into memory.
-HRESULT BinaryReader::ReadEntireFile(_In_z_ wchar_t const* fileName, _Inout_ std::unique_ptr<uint8_t[]>& data, _Out_ size_t* dataSize)
+HRESULT BinaryReader::ReadEntireFile(
+    _In_z_ wchar_t const* fileName,
+    _Inout_ std::unique_ptr<uint8_t[]>& data,
+    _Out_ size_t* dataSize)
 {
+    if (!fileName || !dataSize)
+        return E_INVALIDARG;
+
+    *dataSize = 0;
+
     // Open the file.
 #if (_WIN32_WINNT >= _WIN32_WINNT_WIN8)
     ScopedHandle hFile(safe_handle(CreateFile2(fileName, GENERIC_READ, FILE_SHARE_READ, OPEN_EXISTING, nullptr)));
@@ -85,6 +93,6 @@ HRESULT BinaryReader::ReadEntireFile(_In_z_ wchar_t const* fileName, _Inout_ std
         return E_FAIL;
 
     *dataSize = bytesRead;
-    
+
     return S_OK;
 }

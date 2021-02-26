@@ -1,11 +1,9 @@
-// THIS CODE AND INFORMATION IS PROVIDED "AS IS" WITHOUT WARRANTY OF
-// ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED TO
-// THE IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A
-// PARTICULAR PURPOSE.
-//
 // Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License.
 //
+// http://go.microsoft.com/fwlink/?LinkId=248926
 // http://go.microsoft.com/fwlink/?LinkId=248929
+// http://go.microsoft.com/fwlink/?LinkID=615561
 // http://create.msdn.com/en-US/education/catalog/sample/stock_effects
 
 
@@ -96,14 +94,3 @@ CommonVSOutputPixelLighting ComputeCommonVSOutputPixelLighting(float4 position, 
     vout.PositionWS = float4(cout.Pos_ws, cout.FogFactor); \
     vout.NormalWS = cout.Normal_ws;
 
-
-// Given a local normal, transform it into a tangent space given by surface normal and tangent
-float3 PeturbNormal(float3 localNormal, float3 surfaceNormalWS, float3 surfaceTangentWS)
-{
-    float3 normal = normalize(surfaceNormalWS);
-    float3 tangent = normalize(surfaceTangentWS);
-    float3 binormal = cross(normal, tangent);     // reconstructed from normal & tangent
-    float3x3 tbn = { tangent, binormal, normal }; // world "frame" for local normal 
-    
-    return mul(localNormal, tbn);               // transform to local to world (tangent space)
-}

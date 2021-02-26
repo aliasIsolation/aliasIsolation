@@ -1,11 +1,9 @@
-// THIS CODE AND INFORMATION IS PROVIDED "AS IS" WITHOUT WARRANTY OF
-// ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED TO
-// THE IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A
-// PARTICULAR PURPOSE.
-//
 // Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License.
 //
+// http://go.microsoft.com/fwlink/?LinkId=248926
 // http://go.microsoft.com/fwlink/?LinkId=248929
+// http://go.microsoft.com/fwlink/?LinkID=615561
 // http://create.msdn.com/en-US/education/catalog/sample/stock_effects
 
 
@@ -59,23 +57,6 @@ struct VSInputNmTxVc
 {
     float4 Position : SV_Position;
     float3 Normal   : NORMAL;
-    float2 TexCoord : TEXCOORD0;
-    float4 Color    : COLOR;
-};
-
-struct VSInputNmTxTangent
-{
-    float4 Position : SV_Position;
-    float3 Normal   : NORMAL;
-    float4 Tangent  : TANGENT;
-    float2 TexCoord : TEXCOORD0;
-};
-
-struct VSInputNmTxVcTangent
-{
-    float4 Position : SV_Position;
-    float3 Normal   : NORMAL;
-    float4 Tangent  : TANGENT;
     float2 TexCoord : TEXCOORD0;
     float4 Color    : COLOR;
 };
@@ -153,16 +134,6 @@ struct VSOutputPixelLightingTx
     float4 PositionPS : SV_Position;
 };
 
-struct VSOutputPixelLightingTxTangent
-{
-    float2 TexCoord   : TEXCOORD0;
-    float4 PositionWS : TEXCOORD1;
-    float3 NormalWS   : TEXCOORD2;
-    float3 TangentWS  : TEXCOORD3;
-    float4 Diffuse    : COLOR0;
-    float4 PositionPS : SV_Position;
-};
-
 struct VSOutputTx2
 {
     float4 Diffuse    : COLOR0;
@@ -229,15 +200,6 @@ struct PSInputPixelLightingTx
     float2 TexCoord   : TEXCOORD0;
     float4 PositionWS : TEXCOORD1;
     float3 NormalWS   : TEXCOORD2;
-    float4 Diffuse    : COLOR0;
-};
-
-struct PSInputPixelLightingTxTangent
-{
-    float2 TexCoord   : TEXCOORD0;
-    float4 PositionWS : TEXCOORD1;
-    float3 NormalWS   : TEXCOORD2;
-    float3 TangentWS  : TEXCOORD3;
     float4 Diffuse    : COLOR0;
 };
 

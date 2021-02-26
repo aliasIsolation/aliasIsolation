@@ -8,12 +8,8 @@
 // module in the DirectXTex package or as part of the DirectXTK library to load
 // these files which use standard Direct3D resource creation APIs.
 //
-// THIS CODE AND INFORMATION IS PROVIDED "AS IS" WITHOUT WARRANTY OF
-// ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED TO
-// THE IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A
-// PARTICULAR PURPOSE.
-//
 // Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License.
 //
 // http://go.microsoft.com/fwlink/?LinkId=248926
 // http://go.microsoft.com/fwlink/?LinkId=248929
@@ -27,18 +23,27 @@
 
 #include <d3d11_x.h>
 
-#include <stdint.h>
+#include <cstddef>
+#include <cstdint>
+
+#ifndef DDS_ALPHA_MODE_DEFINED
+#define DDS_ALPHA_MODE_DEFINED
+namespace DirectX
+{
+    enum DDS_ALPHA_MODE : uint32_t
+    {
+        DDS_ALPHA_MODE_UNKNOWN = 0,
+        DDS_ALPHA_MODE_STRAIGHT = 1,
+        DDS_ALPHA_MODE_PREMULTIPLIED = 2,
+        DDS_ALPHA_MODE_OPAQUE = 3,
+        DDS_ALPHA_MODE_CUSTOM = 4,
+    };
+}
+#endif
 
 namespace Xbox
 {
-    enum DDS_ALPHA_MODE
-    {
-        DDS_ALPHA_MODE_UNKNOWN       = 0,
-        DDS_ALPHA_MODE_STRAIGHT      = 1,
-        DDS_ALPHA_MODE_PREMULTIPLIED = 2,
-        DDS_ALPHA_MODE_OPAQUE        = 3,
-        DDS_ALPHA_MODE_CUSTOM        = 4,
-    };
+    using DirectX::DDS_ALPHA_MODE;
 
     HRESULT __cdecl CreateDDSTextureFromMemory(
         _In_ ID3D11DeviceX* d3dDevice,
@@ -47,8 +52,8 @@ namespace Xbox
         _Outptr_opt_ ID3D11Resource** texture,
         _Outptr_opt_ ID3D11ShaderResourceView** textureView,
         _Outptr_ void** grfxMemory,
-        _Out_opt_ DDS_ALPHA_MODE* alphaMode = nullptr, 
-        _In_ bool forceSRGB = false);
+        _Out_opt_ DDS_ALPHA_MODE* alphaMode = nullptr,
+        _In_ bool forceSRGB = false) noexcept;
 
     HRESULT __cdecl CreateDDSTextureFromFile( _In_ ID3D11DeviceX* d3dDevice,
         _In_z_ const wchar_t* szFileName,
@@ -56,5 +61,7 @@ namespace Xbox
         _Outptr_opt_ ID3D11ShaderResourceView** textureView,
         _Outptr_ void** grfxMemory,
         _Out_opt_ DDS_ALPHA_MODE* alphaMode = nullptr,
-        _In_ bool forceSRGB = false);
+        _In_ bool forceSRGB = false) noexcept;
+
+    void FreeDDSTextureMemory( _In_opt_ void* grfxMemory ) noexcept;
 }

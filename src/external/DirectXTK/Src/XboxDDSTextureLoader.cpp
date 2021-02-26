@@ -8,12 +8,8 @@
 // module in the DirectXTex package or as part of the DirectXTK library to load
 // these files which use standard Direct3D resource creation APIs.
 //
-// THIS CODE AND INFORMATION IS PROVIDED "AS IS" WITHOUT WARRANTY OF
-// ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED TO
-// THE IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A
-// PARTICULAR PURPOSE.
-//
 // Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License.
 //
 // http://go.microsoft.com/fwlink/?LinkId=248926
 // http://go.microsoft.com/fwlink/?LinkId=248929
@@ -23,9 +19,9 @@
 
 #include "XboxDDSTextureLoader.h"
 
-#include "dds.h"
-#include "DirectXHelpers.h"
 #include "PlatformHelpers.h"
+#include "DDS.h"
+#include "DirectXHelpers.h"
 
 #include <xdk.h>
 
@@ -34,6 +30,16 @@ using namespace Xbox;
 
 namespace
 {
+    //--------------------------------------------------------------------------------------
+    // Default XMemAlloc attributes for texture loading
+    //--------------------------------------------------------------------------------------
+    const uint64_t c_XMemAllocAttributes = MAKE_XALLOC_ATTRIBUTES(
+        eXALLOCAllocatorId_MiddlewareReservedMin,
+        0,
+        XALLOC_MEMTYPE_GRAPHICS_WRITECOMBINE_GPU_READONLY,
+        XALLOC_PAGESIZE_64KB,
+        XALLOC_ALIGNMENT_64K);
+
     //--------------------------------------------------------------------------------------
     // DDS file structure definitions
     //
@@ -64,8 +70,7 @@ namespace
         std::unique_ptr<uint8_t[]>& ddsData,
         DDS_HEADER** header,
         uint8_t** bitData,
-        size_t* bitSize
-    )
+        size_t* bitSize) noexcept
     {
         if (!header || !bitData || !bitSize)
         {
@@ -85,7 +90,7 @@ namespace
         }
 
         // Get the file size
-        LARGE_INTEGER FileSize = { 0 };
+        LARGE_INTEGER FileSize = {};
 
         FILE_STANDARD_INFO fileInfo;
         if (!GetFileInformationByHandleEx(hFile.get(), FileStandardInfo, &fileInfo, sizeof(fileInfo)))
@@ -131,7 +136,7 @@ namespace
         }
 
         // DDS files always start with the same magic number ("DDS ")
-        uint32_t dwMagicNumber = *(const uint32_t*)(ddsData.get());
+        auto dwMagicNumber = *reinterpret_cast<uint32_t*>(ddsData.get());
         if (dwMagicNumber != DDS_MAGIC)
         {
             return E_FAIL;
@@ -162,7 +167,7 @@ namespace
 
         // setup the pointers in the process request
         *header = hdr;
-        ptrdiff_t offset = sizeof(uint32_t) + sizeof(DDS_HEADER) + sizeof(DDS_HEADER_XBOX);
+        auto offset = sizeof(uint32_t) + sizeof(DDS_HEADER) + sizeof(DDS_HEADER_XBOX);
         *bitData = ddsData.get() + offset;
         *bitSize = FileSize.LowPart - offset;
 
@@ -170,7 +175,7 @@ namespace
     }
 
     //--------------------------------------------------------------------------------------
-    DXGI_FORMAT MakeSRGB(_In_ DXGI_FORMAT format)
+    DXGI_FORMAT MakeSRGB(_In_ DXGI_FORMAT format) noexcept
     {
         switch (format)
         {
@@ -212,7 +217,7 @@ namespace
         _In_ bool isCubeMap,
         _In_ void* grfxMemory,
         _Outptr_opt_ ID3D11Resource** texture,
-        _Outptr_opt_ ID3D11ShaderResourceView** textureView)
+        _Outptr_opt_ ID3D11ShaderResourceView** textureView) noexcept
     {
         if (!d3dDevice || !grfxMemory)
             return E_POINTER;
@@ -229,8 +234,7 @@ namespace
         {
         case D3D11_RESOURCE_DIMENSION_TEXTURE1D:
         {
-            D3D11_TEXTURE1D_DESC desc;
-            memset(&desc, 0, sizeof(desc));
+            D3D11_TEXTURE1D_DESC desc = {};
             desc.Width = static_cast<UINT>(width);
             desc.MipLevels = static_cast<UINT>(mipCount);
             desc.ArraySize = static_cast<UINT>(arraySize);
@@ -244,8 +248,7 @@ namespace
             {
                 if (textureView != 0)
                 {
-                    D3D11_SHADER_RESOURCE_VIEW_DESC SRVDesc;
-                    memset(&SRVDesc, 0, sizeof(SRVDesc));
+                    D3D11_SHADER_RESOURCE_VIEW_DESC SRVDesc = {};
                     SRVDesc.Format = format;
 
                     if (arraySize > 1)
@@ -286,8 +289,7 @@ namespace
 
         case D3D11_RESOURCE_DIMENSION_TEXTURE2D:
         {
-            D3D11_TEXTURE2D_DESC desc;
-            memset(&desc, 0, sizeof(desc));
+            D3D11_TEXTURE2D_DESC desc = {};
             desc.Width = static_cast<UINT>(width);
             desc.Height = static_cast<UINT>(height);
             desc.MipLevels = static_cast<UINT>(mipCount);
@@ -304,8 +306,7 @@ namespace
             {
                 if (textureView != 0)
                 {
-                    D3D11_SHADER_RESOURCE_VIEW_DESC SRVDesc;
-                    memset(&SRVDesc, 0, sizeof(SRVDesc));
+                    D3D11_SHADER_RESOURCE_VIEW_DESC SRVDesc = {};
                     SRVDesc.Format = format;
 
                     if (isCubeMap)
@@ -362,8 +363,7 @@ namespace
 
         case D3D11_RESOURCE_DIMENSION_TEXTURE3D:
         {
-            D3D11_TEXTURE3D_DESC desc;
-            memset(&desc, 0, sizeof(desc));
+            D3D11_TEXTURE3D_DESC desc = {};
             desc.Width = static_cast<UINT>(width);
             desc.Height = static_cast<UINT>(height);
             desc.Depth = static_cast<UINT>(depth);
@@ -378,8 +378,7 @@ namespace
             {
                 if (textureView != 0)
                 {
-                    D3D11_SHADER_RESOURCE_VIEW_DESC SRVDesc;
-                    memset(&SRVDesc, 0, sizeof(SRVDesc));
+                    D3D11_SHADER_RESOURCE_VIEW_DESC SRVDesc = {};
                     SRVDesc.Format = format;
 
                     SRVDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE3D;
@@ -421,7 +420,7 @@ namespace
         _In_ bool forceSRGB,
         _Outptr_opt_ ID3D11Resource** texture,
         _Outptr_opt_ ID3D11ShaderResourceView** textureView,
-        _Outptr_ void** grfxMemory)
+        _Outptr_ void** grfxMemory) noexcept
     {
         HRESULT hr = S_OK;
 
@@ -494,6 +493,11 @@ namespace
             return HRESULT_FROM_WIN32(ERROR_NOT_SUPPORTED);
         }
 
+        if (xboxext->tileMode == uint32_t(-1))
+        {
+            return HRESULT_FROM_WIN32(ERROR_INVALID_DATA);
+        }
+
         // Bound sizes
         if (mipCount > D3D11_REQ_MIP_LEVELS)
         {
@@ -555,15 +559,10 @@ namespace
             return HRESULT_FROM_WIN32(ERROR_HANDLE_EOF);
         }
 
-        // Allocate graphics memory
-        size_t sizeBytes = (size_t(xboxext->dataSize) + 0xFFF) & ~0xFFF; // 4K boundary
-        size_t alignmentBytes = std::max<size_t>(xboxext->baseAlignment, 4096);
-
-        hr = D3DAllocateGraphicsMemory(sizeBytes, alignmentBytes, 0, D3D11_GRAPHICS_MEMORY_ACCESS_CPU_CACHE_COHERENT, grfxMemory);
-        if (FAILED(hr))
-            return hr;
-
-        assert(*grfxMemory != 0);
+        // Allocate graphics memory. Depending on the data size it uses 4MB or 64K pages.
+        *grfxMemory = XMemAlloc(xboxext->dataSize, c_XMemAllocAttributes);
+        if (!*grfxMemory)
+            return E_OUTOFMEMORY;
 
         // Copy tiled data into graphics memory
         memcpy(*grfxMemory, bitData, xboxext->dataSize);
@@ -575,7 +574,7 @@ namespace
             texture, textureView);
         if (FAILED(hr))
         {
-            D3DFreeGraphicsMemory(*grfxMemory);
+            XMemFree(grfxMemory, c_XMemAllocAttributes);
             *grfxMemory = nullptr;
         }
 
@@ -583,7 +582,7 @@ namespace
     }
 
     //--------------------------------------------------------------------------------------
-    DDS_ALPHA_MODE GetAlphaMode(_In_ const DDS_HEADER* header)
+    DDS_ALPHA_MODE GetAlphaMode(_In_ const DDS_HEADER* header) noexcept
     {
         if (header->ddspf.flags & DDS_FOURCC)
         {
@@ -598,6 +597,9 @@ namespace
                 case DDS_ALPHA_MODE_OPAQUE:
                 case DDS_ALPHA_MODE_CUSTOM:
                     return mode;
+
+                default:
+                    break;
                 }
             }
         }
@@ -609,14 +611,15 @@ namespace
 
 //--------------------------------------------------------------------------------------
 _Use_decl_annotations_
-HRESULT Xbox::CreateDDSTextureFromMemory( ID3D11DeviceX* d3dDevice,
-                                          const uint8_t* ddsData,
-                                          size_t ddsDataSize,
-                                          ID3D11Resource** texture,
-                                          ID3D11ShaderResourceView** textureView,
-                                          void** grfxMemory,
-                                          DDS_ALPHA_MODE* alphaMode,
-                                          bool forceSRGB )
+HRESULT Xbox::CreateDDSTextureFromMemory(
+    ID3D11DeviceX* d3dDevice,
+    const uint8_t* ddsData,
+    size_t ddsDataSize,
+    ID3D11Resource** texture,
+    ID3D11ShaderResourceView** textureView,
+    void** grfxMemory,
+    DDS_ALPHA_MODE* alphaMode,
+    bool forceSRGB ) noexcept
 {
     if ( texture )
     {
@@ -646,7 +649,7 @@ HRESULT Xbox::CreateDDSTextureFromMemory( ID3D11DeviceX* d3dDevice,
         return E_FAIL;
     }
 
-    uint32_t dwMagicNumber = *( const uint32_t* )( ddsData );
+    auto dwMagicNumber = *reinterpret_cast<const uint32_t*>(ddsData);
     if (dwMagicNumber != DDS_MAGIC)
     {
         return E_FAIL;
@@ -675,7 +678,7 @@ HRESULT Xbox::CreateDDSTextureFromMemory( ID3D11DeviceX* d3dDevice,
         return E_FAIL;
     }
 
-    ptrdiff_t offset = sizeof( uint32_t ) + sizeof( DDS_HEADER ) + sizeof( DDS_HEADER_XBOX );
+    auto offset = sizeof( uint32_t ) + sizeof( DDS_HEADER ) + sizeof( DDS_HEADER_XBOX );
 
     HRESULT hr = CreateTextureFromDDS( d3dDevice, header,
                                        ddsData + offset, ddsDataSize - offset, forceSRGB,
@@ -702,13 +705,14 @@ HRESULT Xbox::CreateDDSTextureFromMemory( ID3D11DeviceX* d3dDevice,
 
 //--------------------------------------------------------------------------------------
 _Use_decl_annotations_
-HRESULT Xbox::CreateDDSTextureFromFile( ID3D11DeviceX* d3dDevice,
-                                        const wchar_t* fileName,
-                                        ID3D11Resource** texture,
-                                        ID3D11ShaderResourceView** textureView,
-                                        void** grfxMemory,
-                                        DDS_ALPHA_MODE* alphaMode,
-                                        bool forceSRGB )
+HRESULT Xbox::CreateDDSTextureFromFile(
+    ID3D11DeviceX* d3dDevice,
+    const wchar_t* fileName,
+    ID3D11Resource** texture,
+    ID3D11ShaderResourceView** textureView,
+    void** grfxMemory,
+    DDS_ALPHA_MODE* alphaMode,
+    bool forceSRGB ) noexcept
 {
     if ( texture )
     {
@@ -771,4 +775,14 @@ HRESULT Xbox::CreateDDSTextureFromFile( ID3D11DeviceX* d3dDevice,
     }
 
     return hr;
+}
+
+//--------------------------------------------------------------------------------------
+_Use_decl_annotations_
+void Xbox::FreeDDSTextureMemory(void* grfxMemory) noexcept
+{
+    if (grfxMemory)
+    {
+        XMemFree(grfxMemory, c_XMemAllocAttributes);
+    }
 }

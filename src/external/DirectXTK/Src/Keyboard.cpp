@@ -1,14 +1,11 @@
-﻿//--------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------
 // File: Keyboard.cpp
 //
-// THIS CODE AND INFORMATION IS PROVIDED "AS IS" WITHOUT WARRANTY OF
-// ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED TO
-// THE IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A
-// PARTICULAR PURPOSE.
-//
 // Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License.
 //
 // http://go.microsoft.com/fwlink/?LinkId=248929
+// http://go.microsoft.com/fwlink/?LinkID=615561
 //--------------------------------------------------------------------------------------
 
 #include "pch.h"
@@ -21,9 +18,13 @@ using Microsoft::WRL::ComPtr;
 
 static_assert(sizeof(Keyboard::State) == (256 / 8), "Size mismatch for State");
 
+#ifdef __clang__
+#pragma clang diagnostic ignored "-Wunused-function"
+#endif
+
 namespace
 {
-    void KeyDown(int key, Keyboard::State& state)
+    inline void KeyDown(int key, Keyboard::State& state) noexcept
     {
         if (key < 0 || key > 0xfe)
             return;
@@ -34,7 +35,7 @@ namespace
         ptr[(key >> 5)] |= bf;
     }
 
-    void KeyUp(int key, Keyboard::State& state)
+    inline void KeyUp(int key, Keyboard::State& state) noexcept
     {
         if (key < 0 || key > 0xfe)
             return;
@@ -47,207 +48,122 @@ namespace
 }
 
 
-#if defined(WINAPI_FAMILY) && (WINAPI_FAMILY == WINAPI_FAMILY_APP)
+#if defined(WINAPI_FAMILY) && (WINAPI_FAMILY == WINAPI_FAMILY_GAMES)
+
+#include <GameInput.h>
 
 //======================================================================================
-// Windows Store or Universal Windows Platform (UWP) app implementation
+// GameInput
 //======================================================================================
-
-//
-// For a Windows Store app or Universal Windows Platform (UWP) app, add the following:
-//
-// void App::SetWindow(CoreWindow^ window )
-// {
-//     m_keyboard->SetWindow(window);
-// }
-//
 
 class Keyboard::Impl
 {
 public:
     Impl(Keyboard* owner) :
-        mOwner(owner)
+        mOwner(owner),
+        mConnected(0),
+        mDeviceToken(0),
+        mKeyState{}
     {
-        mAcceleratorKeyToken.value = 0;
-        mActivatedToken.value = 0;
-
-        if ( s_keyboard )
+        if (s_keyboard)
         {
-            throw std::exception( "Keyboard is a singleton" );
+            throw std::logic_error("Keyboard is a singleton");
         }
 
         s_keyboard = this;
 
-        memset( &mState, 0, sizeof(State) );
+        ThrowIfFailed(GameInputCreate(mGameInput.GetAddressOf()));
+
+        ThrowIfFailed(mGameInput->RegisterDeviceCallback(
+            nullptr,
+            GameInputKindKeyboard,
+            GameInputDeviceConnected,
+            GameInputBlockingEnumeration,
+            this,
+            OnGameInputDevice,
+            &mDeviceToken));
     }
+
+    Impl(Impl&&) = default;
+    Impl& operator= (Impl&&) = default;
+
+    Impl(Impl const&) = delete;
+    Impl& operator= (Impl const&) = delete;
 
     ~Impl()
     {
-        s_keyboard = nullptr;
+        if (mDeviceToken)
+        {
+            if (mGameInput)
+            {
+                if (!mGameInput->UnregisterCallback(mDeviceToken, UINT64_MAX))
+                {
+                    DebugTrace("ERROR: GameInput::UnregisterCallback [keyboard] failed");
+                }
+            }
 
-        RemoveHandlers();
+            mDeviceToken = 0;
+        }
+
+        s_keyboard = nullptr;
     }
 
     void GetState(State& state) const
     {
-        memcpy( &state, &mState, sizeof(State) );
+        state = {};
+
+        ComPtr<IGameInputReading> reading;
+        if (SUCCEEDED(mGameInput->GetCurrentReading(GameInputKindKeyboard, nullptr, reading.GetAddressOf())))
+        {
+            uint32_t readCount = reading->GetKeyState(c_MaxSimultaneousKeys, mKeyState);
+            for (size_t j = 0; j < readCount; ++j)
+            {
+                int vk = static_cast<int>(mKeyState[j].virtualKey);
+                KeyDown(vk, state);
+            }
+        }
     }
 
-    void Reset()
+    void Reset() noexcept
     {
-        memset( &mState, 0, sizeof(State) );
     }
 
-    void SetWindow(ABI::Windows::UI::Core::ICoreWindow* window)
+    bool IsConnected() const
     {
-        using namespace Microsoft::WRL;
-        using namespace Microsoft::WRL::Wrappers;
-        using namespace ABI::Windows::UI::Core;
-
-        if (mWindow.Get() == window)
-            return;
-
-        RemoveHandlers();
-
-        mWindow = window;
-
-        if (!window)
-            return;
-
-        typedef __FITypedEventHandler_2_Windows__CUI__CCore__CCoreWindow_Windows__CUI__CCore__CWindowActivatedEventArgs ActivatedHandler;
-        HRESULT hr = window->add_Activated(Callback<ActivatedHandler>(Activated).Get(), &mActivatedToken);
-        ThrowIfFailed(hr);
-
-        ComPtr<ICoreDispatcher> dispatcher;
-        hr = window->get_Dispatcher( dispatcher.GetAddressOf() );
-        ThrowIfFailed(hr);
-
-        ComPtr<ICoreAcceleratorKeys> keys;
-        hr = dispatcher.As(&keys);
-        ThrowIfFailed(hr);
-
-        typedef __FITypedEventHandler_2_Windows__CUI__CCore__CCoreDispatcher_Windows__CUI__CCore__CAcceleratorKeyEventArgs AcceleratorKeyHandler;
-        hr = keys->add_AcceleratorKeyActivated( Callback<AcceleratorKeyHandler>(AcceleratorKeyEvent).Get(), &mAcceleratorKeyToken);
-        ThrowIfFailed(hr);
+        return mConnected > 0;
     }
 
-    State       mState;
-    Keyboard*   mOwner;
+    Keyboard*       mOwner;
+    uint32_t        mConnected;
 
     static Keyboard::Impl* s_keyboard;
 
 private:
-    ComPtr<ABI::Windows::UI::Core::ICoreWindow> mWindow;
+    static constexpr size_t     c_MaxSimultaneousKeys = 16;
 
-    EventRegistrationToken mAcceleratorKeyToken;
-    EventRegistrationToken mActivatedToken;
+    ComPtr<IGameInput>          mGameInput;
+    GameInputCallbackToken      mDeviceToken;
 
-    void RemoveHandlers()
+    mutable GameInputKeyState   mKeyState[c_MaxSimultaneousKeys];
+
+    static void CALLBACK OnGameInputDevice(
+        _In_ GameInputCallbackToken,
+        _In_ void * context,
+        _In_ IGameInputDevice *,
+        _In_ uint64_t,
+        _In_ GameInputDeviceStatus currentStatus,
+        _In_ GameInputDeviceStatus) noexcept
     {
-        if (mWindow)
+        auto impl = reinterpret_cast<Keyboard::Impl*>(context);
+
+        if (currentStatus & GameInputDeviceConnected)
         {
-            using namespace ABI::Windows::UI::Core;
-
-            ComPtr<ICoreDispatcher> dispatcher;
-            HRESULT hr = mWindow->get_Dispatcher( dispatcher.GetAddressOf() );
-            ThrowIfFailed(hr);
-
-            mWindow->remove_Activated(mActivatedToken);
-            mActivatedToken.value = 0;
-
-            ComPtr<ICoreAcceleratorKeys> keys;
-            hr = dispatcher.As(&keys);
-            ThrowIfFailed(hr);
-
-            keys->remove_AcceleratorKeyActivated(mAcceleratorKeyToken);
-            mAcceleratorKeyToken.value = 0;
+            ++impl->mConnected;
         }
-    }
-
-    static HRESULT Activated( IInspectable *, ABI::Windows::UI::Core::IWindowActivatedEventArgs* )
-    {
-        auto pImpl = Impl::s_keyboard;
-
-        if (!pImpl)
-            return S_OK;
-
-        pImpl->Reset();
-
-        return S_OK;
-    }
-
-    static HRESULT AcceleratorKeyEvent( IInspectable *, ABI::Windows::UI::Core::IAcceleratorKeyEventArgs* args )
-    {
-        using namespace ABI::Windows::System;
-        using namespace ABI::Windows::UI::Core;
-
-        auto pImpl = Impl::s_keyboard;
-
-        if (!pImpl)
-            return S_OK;
-
-        CoreAcceleratorKeyEventType evtType;
-        HRESULT hr = args->get_EventType(&evtType);
-        ThrowIfFailed(hr);
-
-        bool down = false;
-
-        switch (evtType)
+        else if (impl->mConnected > 0)
         {
-        case CoreAcceleratorKeyEventType_KeyDown:
-        case CoreAcceleratorKeyEventType_SystemKeyDown:
-            down = true;
-            break;
-
-        case CoreAcceleratorKeyEventType_KeyUp:
-        case CoreAcceleratorKeyEventType_SystemKeyUp:
-            break;
-
-        default:
-            return S_OK;
+            --impl->mConnected;
         }
-
-        CorePhysicalKeyStatus status;
-        hr = args->get_KeyStatus(&status);
-        ThrowIfFailed(hr);
-
-        VirtualKey virtualKey;
-        hr = args->get_VirtualKey(&virtualKey);
-        ThrowIfFailed(hr);
-
-        int vk = static_cast<int>( virtualKey );
-
-        switch (vk)
-        {
-        case VK_SHIFT:
-            vk = (status.ScanCode == 0x36) ? VK_RSHIFT : VK_LSHIFT;
-            if ( !down )
-            {
-                // Workaround to ensure left vs. right shift get cleared when both were pressed at same time
-                KeyUp(VK_LSHIFT, pImpl->mState);
-                KeyUp(VK_RSHIFT, pImpl->mState);
-            }
-            break;
-
-        case VK_CONTROL:
-            vk = (status.IsExtendedKey) ? VK_RCONTROL : VK_LCONTROL;
-            break;
-
-        case VK_MENU:
-            vk = (status.IsExtendedKey) ? VK_RMENU : VK_LMENU;
-            break;
-        }
-
-        if (down)
-        {
-            KeyDown(vk, pImpl->mState);
-        }
-        else
-        {
-            KeyUp(vk, pImpl->mState);
-        }
-
-        return S_OK;
     }
 };
 
@@ -255,53 +171,7 @@ private:
 Keyboard::Impl* Keyboard::Impl::s_keyboard = nullptr;
 
 
-void Keyboard::SetWindow(ABI::Windows::UI::Core::ICoreWindow* window)
-{
-    pImpl->SetWindow(window);
-}
-
-#elif defined(_XBOX_ONE) || ( defined(WINAPI_FAMILY) && (WINAPI_FAMILY == WINAPI_FAMILY_PHONE_APP) )
-
-//======================================================================================
-// Null device for Windows Phone and Xbox One
-//======================================================================================
-
-class Keyboard::Impl
-{
-public:
-    Impl(Keyboard* owner) :
-        mOwner(owner)
-    {
-        if ( s_keyboard )
-        {
-            throw std::exception( "Keyboard is a singleton" );
-        }
-
-        s_keyboard = this;
-    }
-
-    ~Impl()
-    {
-        s_keyboard = nullptr;
-    }
-
-    void GetState(State& state) const
-    {
-        memset( &state, 0, sizeof(State) );
-    }
-
-    void Reset()
-    {
-    }
-
-    Keyboard*   mOwner;
-
-    static Keyboard::Impl* s_keyboard;
-};
-
-Keyboard::Impl* Keyboard::Impl::s_keyboard = nullptr;
-
-#else
+#elif !defined(WINAPI_FAMILY) || (WINAPI_FAMILY == WINAPI_FAMILY_DESKTOP_APP)
 
 //======================================================================================
 // Win32 desktop implementation
@@ -334,17 +204,22 @@ class Keyboard::Impl
 {
 public:
     Impl(Keyboard* owner) :
+        mState{},
         mOwner(owner)
     {
-        if ( s_keyboard )
+        if (s_keyboard)
         {
-            throw std::exception( "Keyboard is a singleton" );
+            throw std::logic_error("Keyboard is a singleton");
         }
 
         s_keyboard = this;
-
-        memset( &mState, 0, sizeof(State) );
     }
+
+    Impl(Impl&&) = default;
+    Impl& operator= (Impl&&) = default;
+
+    Impl(Impl const&) = delete;
+    Impl& operator= (Impl const&) = delete;
 
     ~Impl()
     {
@@ -353,12 +228,17 @@ public:
 
     void GetState(State& state) const
     {
-        memcpy( &state, &mState, sizeof(State) );
+        memcpy(&state, &mState, sizeof(State));
     }
 
-    void Reset()
+    void Reset() noexcept
     {
-        memset( &mState, 0, sizeof(State) );
+        memset(&mState, 0, sizeof(State));
+    }
+
+    bool IsConnected() const
+    {
+        return true;
     }
 
     State           mState;
@@ -382,43 +262,45 @@ void Keyboard::ProcessMessage(UINT message, WPARAM wParam, LPARAM lParam)
 
     switch (message)
     {
-    case WM_ACTIVATEAPP:
-        pImpl->Reset();
-        return;
+        case WM_ACTIVATEAPP:
+            pImpl->Reset();
+            return;
 
-    case WM_KEYDOWN:
-    case WM_SYSKEYDOWN:
-        down = true;
-        break;
+        case WM_KEYDOWN:
+        case WM_SYSKEYDOWN:
+            down = true;
+            break;
 
-    case WM_KEYUP:
-    case WM_SYSKEYUP:
-        break;
+        case WM_KEYUP:
+        case WM_SYSKEYUP:
+            break;
 
-    default:
-        return;
+        default:
+            return;
     }
 
-    int vk = static_cast<int>( wParam );
+    int vk = static_cast<int>(wParam);
     switch (vk)
     {
-    case VK_SHIFT:
-        vk = MapVirtualKey((lParam & 0x00ff0000) >> 16, MAPVK_VSC_TO_VK_EX);
-        if ( !down )
-        {
-            // Workaround to ensure left vs. right shift get cleared when both were pressed at same time
-            KeyUp(VK_LSHIFT, pImpl->mState);
-            KeyUp(VK_RSHIFT, pImpl->mState);
-        }
-        break;
+        case VK_SHIFT:
+            vk = static_cast<int>(
+                MapVirtualKey((static_cast<UINT>(lParam) & 0x00ff0000) >> 16u,
+                    MAPVK_VSC_TO_VK_EX));
+            if (!down)
+            {
+                // Workaround to ensure left vs. right shift get cleared when both were pressed at same time
+                KeyUp(VK_LSHIFT, pImpl->mState);
+                KeyUp(VK_RSHIFT, pImpl->mState);
+            }
+            break;
 
-    case VK_CONTROL:
-        vk = (lParam & 0x01000000) ? VK_RCONTROL : VK_LCONTROL;
-        break;
+        case VK_CONTROL:
+            vk = (static_cast<UINT>(lParam) & 0x01000000) ? VK_RCONTROL : VK_LCONTROL;
+            break;
 
-    case VK_MENU:
-        vk = (lParam & 0x01000000) ? VK_RMENU : VK_LMENU;
-        break;
+        case VK_MENU:
+            vk = (static_cast<UINT>(lParam) & 0x01000000) ? VK_RMENU : VK_LMENU;
+            break;
     }
 
     if (down)
@@ -431,27 +313,261 @@ void Keyboard::ProcessMessage(UINT message, WPARAM wParam, LPARAM lParam)
     }
 }
 
+
+#else
+
+//======================================================================================
+// Windows Store or Universal Windows Platform (UWP) app implementation
+//======================================================================================
+
+//
+// For a Windows Store app or Universal Windows Platform (UWP) app, add the following:
+//
+// void App::SetWindow(CoreWindow^ window )
+// {
+//     m_keyboard->SetWindow(window);
+// }
+//
+
+#include <Windows.Devices.Input.h>
+
+class Keyboard::Impl
+{
+public:
+    Impl(Keyboard* owner) :
+        mState{},
+        mOwner(owner),
+        mAcceleratorKeyToken{},
+        mActivatedToken{}
+    {
+        if (s_keyboard)
+        {
+            throw std::logic_error("Keyboard is a singleton");
+        }
+
+        s_keyboard = this;
+    }
+
+    ~Impl()
+    {
+        s_keyboard = nullptr;
+
+        RemoveHandlers();
+    }
+
+    void GetState(State& state) const
+    {
+        memcpy(&state, &mState, sizeof(State));
+    }
+
+    void Reset() noexcept
+    {
+        memset(&mState, 0, sizeof(State));
+    }
+
+    bool IsConnected() const
+    {
+        using namespace Microsoft::WRL;
+        using namespace Microsoft::WRL::Wrappers;
+        using namespace ABI::Windows::Devices::Input;
+        using namespace ABI::Windows::Foundation;
+
+        ComPtr<IKeyboardCapabilities> caps;
+        HRESULT hr = RoActivateInstance(HStringReference(RuntimeClass_Windows_Devices_Input_KeyboardCapabilities).Get(), &caps);
+        ThrowIfFailed(hr);
+
+        INT32 value;
+        if (SUCCEEDED(caps->get_KeyboardPresent(&value)))
+        {
+            return value != 0;
+        }
+
+        return false;
+    }
+
+    void SetWindow(ABI::Windows::UI::Core::ICoreWindow* window)
+    {
+        using namespace Microsoft::WRL;
+        using namespace Microsoft::WRL::Wrappers;
+        using namespace ABI::Windows::UI::Core;
+
+        if (mWindow.Get() == window)
+            return;
+
+        RemoveHandlers();
+
+        mWindow = window;
+
+        if (!window)
+            return;
+
+        typedef __FITypedEventHandler_2_Windows__CUI__CCore__CCoreWindow_Windows__CUI__CCore__CWindowActivatedEventArgs ActivatedHandler;
+        HRESULT hr = window->add_Activated(Callback<ActivatedHandler>(Activated).Get(), &mActivatedToken);
+        ThrowIfFailed(hr);
+
+        ComPtr<ICoreDispatcher> dispatcher;
+        hr = window->get_Dispatcher(dispatcher.GetAddressOf());
+        ThrowIfFailed(hr);
+
+        ComPtr<ICoreAcceleratorKeys> keys;
+        hr = dispatcher.As(&keys);
+        ThrowIfFailed(hr);
+
+        typedef __FITypedEventHandler_2_Windows__CUI__CCore__CCoreDispatcher_Windows__CUI__CCore__CAcceleratorKeyEventArgs AcceleratorKeyHandler;
+        hr = keys->add_AcceleratorKeyActivated(Callback<AcceleratorKeyHandler>(AcceleratorKeyEvent).Get(), &mAcceleratorKeyToken);
+        ThrowIfFailed(hr);
+    }
+
+    State       mState;
+    Keyboard*   mOwner;
+
+    static Keyboard::Impl* s_keyboard;
+
+private:
+    ComPtr<ABI::Windows::UI::Core::ICoreWindow> mWindow;
+
+    EventRegistrationToken mAcceleratorKeyToken;
+    EventRegistrationToken mActivatedToken;
+
+    void RemoveHandlers()
+    {
+        if (mWindow)
+        {
+            using namespace ABI::Windows::UI::Core;
+
+            ComPtr<ICoreDispatcher> dispatcher;
+            HRESULT hr = mWindow->get_Dispatcher(dispatcher.GetAddressOf());
+            ThrowIfFailed(hr);
+
+            (void)mWindow->remove_Activated(mActivatedToken);
+            mActivatedToken.value = 0;
+
+            ComPtr<ICoreAcceleratorKeys> keys;
+            hr = dispatcher.As(&keys);
+            ThrowIfFailed(hr);
+
+            (void)keys->remove_AcceleratorKeyActivated(mAcceleratorKeyToken);
+            mAcceleratorKeyToken.value = 0;
+        }
+    }
+
+    static HRESULT Activated(IInspectable *, ABI::Windows::UI::Core::IWindowActivatedEventArgs*)
+    {
+        auto pImpl = Impl::s_keyboard;
+
+        if (!pImpl)
+            return S_OK;
+
+        pImpl->Reset();
+
+        return S_OK;
+    }
+
+    static HRESULT AcceleratorKeyEvent(IInspectable *, ABI::Windows::UI::Core::IAcceleratorKeyEventArgs* args)
+    {
+        using namespace ABI::Windows::System;
+        using namespace ABI::Windows::UI::Core;
+
+        auto pImpl = Impl::s_keyboard;
+
+        if (!pImpl)
+            return S_OK;
+
+        CoreAcceleratorKeyEventType evtType;
+        HRESULT hr = args->get_EventType(&evtType);
+        ThrowIfFailed(hr);
+
+        bool down = false;
+
+        switch (evtType)
+        {
+            case CoreAcceleratorKeyEventType_KeyDown:
+            case CoreAcceleratorKeyEventType_SystemKeyDown:
+                down = true;
+                break;
+
+            case CoreAcceleratorKeyEventType_KeyUp:
+            case CoreAcceleratorKeyEventType_SystemKeyUp:
+                break;
+
+            default:
+                return S_OK;
+        }
+
+        CorePhysicalKeyStatus status;
+        hr = args->get_KeyStatus(&status);
+        ThrowIfFailed(hr);
+
+        VirtualKey virtualKey;
+        hr = args->get_VirtualKey(&virtualKey);
+        ThrowIfFailed(hr);
+
+        int vk = static_cast<int>(virtualKey);
+
+        switch (vk)
+        {
+            case VK_SHIFT:
+                vk = (status.ScanCode == 0x36) ? VK_RSHIFT : VK_LSHIFT;
+                if (!down)
+                {
+                    // Workaround to ensure left vs. right shift get cleared when both were pressed at same time
+                    KeyUp(VK_LSHIFT, pImpl->mState);
+                    KeyUp(VK_RSHIFT, pImpl->mState);
+                }
+                break;
+
+            case VK_CONTROL:
+                vk = (status.IsExtendedKey) ? VK_RCONTROL : VK_LCONTROL;
+                break;
+
+            case VK_MENU:
+                vk = (status.IsExtendedKey) ? VK_RMENU : VK_LMENU;
+                break;
+        }
+
+        if (down)
+        {
+            KeyDown(vk, pImpl->mState);
+        }
+        else
+        {
+            KeyUp(vk, pImpl->mState);
+        }
+
+        return S_OK;
+    }
+};
+
+
+Keyboard::Impl* Keyboard::Impl::s_keyboard = nullptr;
+
+
+void Keyboard::SetWindow(ABI::Windows::UI::Core::ICoreWindow* window)
+{
+    pImpl->SetWindow(window);
+}
+
 #endif
 
 #pragma warning( disable : 4355 )
 
 // Public constructor.
-Keyboard::Keyboard()
-    : pImpl( new Impl(this) )
+Keyboard::Keyboard() noexcept(false)
+    : pImpl(std::make_unique<Impl>(this))
 {
 }
 
 
 // Move constructor.
-Keyboard::Keyboard(Keyboard&& moveFrom)
-  : pImpl(std::move(moveFrom.pImpl))
+Keyboard::Keyboard(Keyboard&& moveFrom) noexcept
+    : pImpl(std::move(moveFrom.pImpl))
 {
     pImpl->mOwner = this;
 }
 
 
 // Move assignment.
-Keyboard& Keyboard::operator= (Keyboard&& moveFrom)
+Keyboard& Keyboard::operator= (Keyboard&& moveFrom) noexcept
 {
     pImpl = std::move(moveFrom.pImpl);
     pImpl->mOwner = this;
@@ -473,16 +589,21 @@ Keyboard::State Keyboard::GetState() const
 }
 
 
-void Keyboard::Reset()
+void Keyboard::Reset() noexcept
 {
     pImpl->Reset();
 }
 
 
+bool Keyboard::IsConnected() const
+{
+    return pImpl->IsConnected();
+}
+
 Keyboard& Keyboard::Get()
 {
-    if ( !Impl::s_keyboard || !Impl::s_keyboard->mOwner )
-        throw std::exception( "Keyboard is a singleton" );
+    if (!Impl::s_keyboard || !Impl::s_keyboard->mOwner)
+        throw std::logic_error("Keyboard singleton not created");
 
     return *Impl::s_keyboard->mOwner;
 }
@@ -493,7 +614,7 @@ Keyboard& Keyboard::Get()
 // KeyboardStateTracker
 //======================================================================================
 
-void Keyboard::KeyboardStateTracker::Update( const State& state )
+void Keyboard::KeyboardStateTracker::Update(const State& state) noexcept
 {
     auto currPtr = reinterpret_cast<const uint32_t*>(&state);
     auto prevPtr = reinterpret_cast<const uint32_t*>(&lastState);
@@ -514,7 +635,7 @@ void Keyboard::KeyboardStateTracker::Update( const State& state )
 }
 
 
-void Keyboard::KeyboardStateTracker::Reset()
+void Keyboard::KeyboardStateTracker::Reset() noexcept
 {
-    memset( this, 0, sizeof(KeyboardStateTracker) );
+    memset(this, 0, sizeof(KeyboardStateTracker));
 }
