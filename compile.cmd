@@ -22,7 +22,8 @@ if exist "%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" (
 )
 
 rem Get the path to the latest version of Visual Studio's MSBuild on the target system.
-for /f "usebackq tokens=*" %%p in (`"%VSWHERE%" -latest -requires Microsoft.Component.MSBuild -find MSBuild\**\Bin\MSBuild.exe`) do (
+rem "-products *" instructs vswhere to find all VS products, not just VS IDE installations.
+for /f "usebackq tokens=*" %%p in (`call "%VSWHERE%" -products * -latest -requires Microsoft.Component.MSBuild -find MSBuild\**\Bin\MSBuild.exe`) do (
 	set "MSBUILD=%%p"
 )
 
