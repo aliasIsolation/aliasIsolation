@@ -5,19 +5,24 @@ Alias Isolation is a mod for Alien: Isolation. It adds temporal anti-aliasing in
 
 The mod works by injecting itself into the executable, and hijacking D3D11 calls. It replaces a few shaders, and injects some of its own rendering.
 
+This fork aims to maintain the mod, resolve existing issues, add new functionality and port the mod to new platforms.
+
+Suggestions for new features or pull requests for this mod are welcome!
+
+
 Usage
 -----
 
-Save the mod files in a non-system directory. It could be "Program Files", or "My Documents", or anything else as long as no special permissions are required to access that direcotry. If you're using a pre-packaged release, please unzip it rather than launching the mod from within the zip.
+Save the mod files in a non-system directory. It could be "Program Files", or "My Documents", or anything else as long as no special permissions are required to access that directory. If you're using a pre-packaged release, please unzip it rather than launching the mod from within the zip.
 
-Run "aliasIsolationInjectorGui.exe", and follow the displayed instructions. Once you press the "Launch Alien: Isolation" button, the mod launches Alien: Isolation and hooks into it. Exiting the app will remove the mod from the Alien. If the game is a Steam copy, first exit Steam before running the injector. If Steam is running before the injector is launched, it will not work. The mod will inject itself into it Steam well, and then launch the game.
+Run "aliasIsolationInjectorGui.exe", and follow the displayed instructions. Once you press the "Launch Alien: Isolation" button, the mod launches Alien: Isolation and hooks into it. Exiting the app will remove the mod from the Alien. If the game is a Steam copy, first exit Steam before running the injector. If Steam is running before the injector is launched, it will not work. The mod will inject itself into Steam as well, and then launch the game.
 
 Injection into Steam is necessary, as it is actually the Steam.exe process which launches the game. Even if AI.exe is started directly, it communicates with Steam, and then exits immediately, allowing Steam to launch it. In order to hook into the game, Alias Isolation hooks into Steam, and intercepts its CreateProcessW call, subsequently injecting itself into the child process. The only binaries that are injected into are Steam.exe and AI.exe.
 
 In order to remove the hook from Steam, run "detachAll.cmd".
 
 
-Video Settings
+Video settings
 --------------
 
 Anti-aliasing must be set to SMAA T1x.
@@ -44,7 +49,7 @@ Known issues
 Building from source
 --------------------
 
-You need to have Visual Studio 2015. Community Edition works fine.
+You need to have Visual Studio 2015 or 2019. Community Edition works fine.
 
 Download Boost 1.61 and put it into src/external/boost/boost. For example, src/external/boost/boost/config.hpp.
 Compile Boost for static CRT, and put the libs into src/external/boost. For example, src/external/boost/libboost_chrono-vc140-mt-s-1_61.lib.
