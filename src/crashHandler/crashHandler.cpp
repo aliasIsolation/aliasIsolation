@@ -23,10 +23,10 @@
 #include <sstream>
 
 struct module_data {
-	std::string image_name;
-	std::string module_name;
-	void *base_address;
-	DWORD load_size;
+	std::string image_name = "";
+	std::string module_name = "";
+	void *base_address = nullptr;
+	DWORD load_size = 0L;
 };
 typedef std::vector<module_data> ModuleList;
 
@@ -65,7 +65,16 @@ bool WriteFullDump(HANDLE hProc, EXCEPTION_POINTERS *ep, const char* filePath)
 		BOOL Result = MiniDumpWriteDump( hProc,
 			GetProcessId(hProc),
 			hFile,
-			(MINIDUMP_TYPE)(MiniDumpNormal),
+#ifdef _DEBUG
+			/* 
+				Do a full memory dump if we are in debug build mode (this will create massive dump files 1GB+, but is useful for debugging because it
+				populates variable data).
+			*/
+			(MINIDUMP_TYPE)(MiniDumpWithFullMemory | MiniDumpWithFullMemoryInfo | MiniDumpWithHandleData | MiniDumpWithUnloadedModules | MiniDumpWithThreadInfo),
+#else
+			// Otherwise do a normal memory dump containing a stack trace for all threads.
+			(MINIDUMP_TYPE)MiniDumpNormal,
+#endif
 			&mdei,
 			nullptr,
 			nullptr );
