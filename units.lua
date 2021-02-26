@@ -25,12 +25,11 @@ local nana = StaticLibrary {
 	}
 }
 
-local crashHandler = StaticLibrary
-{
+local crashHandler = StaticLibrary {
 	Name = "crashHandler",
 	Sources = {
 		Glob { Dir = "src/crashHandler", Extensions = {".cpp", ".h"} },
-	},
+	}
 }
 
 local dll = SharedLibrary {
@@ -41,20 +40,19 @@ local dll = SharedLibrary {
 		"src/external/glm",
 		"src/external/minhook/include",
 		"src/external/stb",
-		"src/external/d3dcompiler43",
 	},
 	Sources = {
 		common_sources,
 		Glob { Dir = "src/dll", Extensions = {".cpp", ".h", ".inl"} }
 	},
 	Libs = {
-		 { "user32.lib", "src/external/d3dcompiler43/d3dcompiler.lib", "d3d11.lib", "psapi.lib", "dbghelp.lib"; Config = {"win*"} },
+		 { "user32.lib", "d3dcompiler.lib", "d3d11.lib", "psapi.lib", "dbghelp.lib"; Config = {"win*"} },
 	},
 }
 
 local injector = Program {
 	Name = "aliasIsolationInjector",
-	Includes = { common_includes },
+	Includes = { common_includes, "src/external/boost" },
 	Sources = {
 		common_sources,
 		Glob { Dir = "src/injector", Extensions = {".cpp", ".h"} },
@@ -67,7 +65,7 @@ local injector = Program {
 local injectorGui = Program {
 	Name = "aliasIsolationInjectorGui",
 	Depends = { nana, crashHandler },
-	Includes = { common_includes, "src/external/nana/include" },
+	Includes = { common_includes, "src/external/nana/include", "src/external/boost" },
 	Sources = {
 		common_sources,
 		Glob { Dir = "src/injectorGui", Extensions = {".cpp", ".h"} },
@@ -84,7 +82,6 @@ local cinematicTools = SharedLibrary {
 	Name = "cinematicTools",
 	Depends = { minhook },
 	Includes = {
-		"C:/Program Files (x86)/Windows Kits/8.1/Include/winrt",
 		"src/external/DirectX/Include",
 		"src/external/DirectXTK/Inc",
 		"src/external/minhook/include",
@@ -97,30 +94,29 @@ local cinematicTools = SharedLibrary {
 	Sources = {
 		Glob { Dir = "src/cinematicTools", Extensions = {".cpp", ".h"} },
 		Glob { Dir = "src/external/FW1FontWrapper_1_1/Source", Extensions = {".cpp", ".h"} },
-		"src/external/DirectXTK/Src/SpriteBatch.cpp",
-		"src/external/DirectXTK/Src/CommonStates.cpp",
-		"src/external/DirectXTK/Src/VertexTypes.cpp",
 	},
 	Libs = {
 		{
-			"Shlwapi.lib", "user32.lib", "Advapi32.lib", "Comdlg32.lib", "Gdi32.lib", "Shell32.lib", "psapi.lib", "dbghelp.lib",
+			"legacy_stdio_definitions.lib", "Shlwapi.lib", "user32.lib", "Advapi32.lib", "Comdlg32.lib", "Gdi32.lib", "Shell32.lib", "psapi.lib", "dbghelp.lib",
 			"src/external/DirectX/Lib/x86/DXErr.lib",
 			"src/external/DirectX/Lib/x86/d3dx11.lib",
 			"XInput.lib";
 			Config = {"win*"}
 		},
 		{
-			"src/external/boost/libboost_chrono-vc140-mt-sgd-1_61.lib",
-			"src/external/boost/libboost_system-vc140-mt-sgd-1_61.lib",
-			"src/external/boost/libboost_date_time-vc140-mt-sgd-1_61.lib",
-			"src/external/FX11/Bin/Desktop_2015/Win32/Debug/Effects11d.lib";
+			"src/external/boost/stage/lib/libboost_chrono-vc142-mt-sgd-x32-1_75.lib",
+			"src/external/boost/stage/lib/libboost_system-vc142-mt-sgd-x32-1_75.lib",
+			"src/external/boost/stage/lib/libboost_date_time-vc142-mt-sgd-x32-1_75.lib",
+			"src/external/FX11/Bin/Desktop_2019_Win10/Win32/Debug/Effects11d.lib",
+			"src/external/DirectXTK/Bin/Desktop_2019/Win32/Debug/DirectXTK.lib";
 			Config = {"*-*-debug-*"}
 		},
 		{
-			"src/external/boost/libboost_chrono-vc140-mt-s-1_61.lib",
-			"src/external/boost/libboost_system-vc140-mt-s-1_61.lib",
-			"src/external/boost/libboost_date_time-vc140-mt-s-1_61.lib",
-			"src/external/FX11/Bin/Desktop_2015/Win32/Release/Effects11.lib";
+			"src/external/boost/stage/lib/libboost_chrono-vc142-mt-s-x32-1_75.lib",
+			"src/external/boost/stage/lib/libboost_system-vc142-mt-s-x32-1_75.lib",
+			"src/external/boost/stage/lib/libboost_date_time-vc142-mt-s-x32-1_75.lib",
+			"src/external/FX11/Bin/Desktop_2019_Win10/Win32/Release/Effects11.lib",
+			"src/external/DirectXTK/Bin/Desktop_2019/Win32/Release/DirectXTK.lib";
 			Config = {"*-*-release"}
 		}
 	}
@@ -129,3 +125,4 @@ local cinematicTools = SharedLibrary {
 Default(dll)
 Default(injector)
 Default(injectorGui)
+Default(cinematicTools)

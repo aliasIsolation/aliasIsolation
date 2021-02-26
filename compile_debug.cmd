@@ -1,1 +1,4 @@
-tools\tundra2\bin\tundra2 debug
+@echo off
+setlocal enabledelayedexpansion
+
+call .\compile.cmd debug

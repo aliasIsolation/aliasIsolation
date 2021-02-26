@@ -1,8 +1,19 @@
 settings.txt
 .tundra2.*
 t2-output
-src/external/boost
+
+# Ignore the contents of boost.
+src/external/boost/*
+# Do not ignore our build_boost.bat script or the README.txt file
+!src/external/boost/build_boost.bat
+!src/external/boost/README.txt
+
 compileTaa.cmd
 /src/external/temp/nana
 /src/external/glm/glm/out/build/x64-Debug
 /src/external/nana/build/vc2019/.vs/nana/v16
+src/external/glm/glm/out
+src/external/nana/out
+release
+debug
+.vs
