@@ -1,8 +1,11 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClInclude Include="inc\d3dx11effect.h">
       <Filter>Inc</Filter>
+    </ClInclude>
+    <ClInclude Include="Binary\SOParser.h">
+      <Filter>Src</Filter>
     </ClInclude>
     <ClInclude Include="inc\d3dxGlobal.h">
       <Filter>Src</Filter>
@@ -28,9 +31,6 @@
     <ClInclude Include="pchfx.h">
       <Filter>Src</Filter>
     </ClInclude>
-    <ClInclude Include="Binary\SOParser.h">
-      <Filter>Src</Filter>
-    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="d3dxGlobal.cpp">
@@ -54,10 +54,10 @@
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Inc">
-      <UniqueIdentifier>{e4218cf5-6bc4-4e5c-9b86-6b5510d80244}</UniqueIdentifier>
+      <UniqueIdentifier>{5c97d453-617b-410c-8072-f4d2b5ce077c}</UniqueIdentifier>
     </Filter>
     <Filter Include="Src">
-      <UniqueIdentifier>{a9b5e924-7940-4b53-a9c3-712ee9ca0587}</UniqueIdentifier>
+      <UniqueIdentifier>{d55450b3-ad27-4a7a-8b92-0bfd44242c8b}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>

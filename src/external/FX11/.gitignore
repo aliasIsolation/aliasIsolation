@@ -16,6 +16,8 @@
 *.lastbuildstate
 *.ilk
 *.VC.db
+.vs
 /ipch
 Bin
 /wiki
+/out
