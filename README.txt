@@ -49,11 +49,16 @@ Known issues
 Building from source
 --------------------
 
-You need to have Visual Studio 2015 or 2019. Community Edition works fine.
+You need to have Visual Studio 2019. Community Edition works fine.
 
-Download Boost 1.61 and put it into src/external/boost/boost. For example, src/external/boost/boost/config.hpp.
-Compile Boost for static CRT, and put the libs into src/external/boost. For example, src/external/boost/libboost_chrono-vc140-mt-s-1_61.lib.
+Download Boost 1.75 and extract it into src/external/boost. For example, you should have "config.hpp" in src/external/boost/boost.
 
-If you want to just build the binaries, but don't care about Visual Studio solution files, just run "compile.cmd". They output will be in "t2-output/win32-msvc-release-default".
+If you want to just build the binaries, but don't care about Visual Studio solution files:
+    (Release mode) Just run "compile.cmd". The output will be in "t2-output/win32-msvc-release-default".
+    (Debug mode) Just run "compile_debug.cmd". The output will be in "t2-output/win32-msvc-debug-default".
 
-If you'd like to open the project in Visual Studio, run "sln-vs2015.cmd", and then open "t2-output/aliasIsolation.sln".
+If you want to build a release (i.e. have it save the binaries and put all the files needed to run the mod in a single folder):
+    (Release mode) Just run "release.cmd". The output will be in "release".
+    (Debug mode) Just run "release_debug.cmd". The output will be in "debug".
+
+If you'd like to open the project in Visual Studio, run "sln-vs2019.cmd", and then open "t2-output/aliasIsolation.sln".
