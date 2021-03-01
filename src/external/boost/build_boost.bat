@@ -6,6 +6,13 @@ if not "%1" == "" (
 	set "BOOSTCONFIGURATION=%1"
 )
 
+rem If we are told to use x64, then we kick off an x64 build instead, otherwise, we build an x86 version.
+if "%2" == "x64" (
+	set "BOOSTADDRESSMODEL=64"
+) else (
+	set "BOOSTADDRESSMODEL=32"
+)
+
 rem Make sure Boost has been installed properly before continuing.
 if not exist "bootstrap.bat" (
 	goto ERR_NO_BOOTSTRAP_BAT
@@ -17,7 +24,10 @@ if not exist "b2.exe" (
 	call bootstrap.bat
 )
 
-b2.exe %BOOSTCONFIGURATION% runtime-link=static threading=multi address-model=32 architecture=x86 --with-chrono --with-system --with-date_time
+rem Ask B2 to compile boost with the configuration we need.
+rem Release or debug, static runtime linking (a static library), multithreaded, 32 or 64 bit address model.
+rem Boost's architecture is always x86, even for x64 builds, only the address model changes.
+b2.exe %BOOSTCONFIGURATION% runtime-link=static threading=multi address-model=%BOOSTADDRESSMODEL% architecture=x86 --with-chrono --with-system --with-date_time
 goto END
 
 :ERR_NO_BOOTSTRAP_BAT

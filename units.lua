@@ -97,11 +97,13 @@ local cinematicTools = SharedLibrary {
 	},
 	Libs = {
 		{
-			"legacy_stdio_definitions.lib", "Shlwapi.lib", "user32.lib", "Advapi32.lib", "Comdlg32.lib", "Gdi32.lib", "Shell32.lib", "psapi.lib", "dbghelp.lib",
-			"src/external/DirectX/Lib/x86/DXErr.lib",
-			"src/external/DirectX/Lib/x86/d3dx11.lib",
-			"XInput.lib";
+			"Shlwapi.lib", "user32.lib", "Advapi32.lib", "Comdlg32.lib", "Gdi32.lib", "Shell32.lib", "psapi.lib", "dbghelp.lib", "XInput.lib";
 			Config = {"win*"}
+		},
+		-- Legacy DirectX SDK dependency (x86).
+		{
+			"src/external/DirectX/Lib/x86/d3dx11.lib";
+			Config = {"win32-*-*"}
 		},
 		{
 			"src/external/boost/stage/lib/libboost_chrono-vc142-mt-sgd-x32-1_75.lib",
@@ -109,7 +111,7 @@ local cinematicTools = SharedLibrary {
 			"src/external/boost/stage/lib/libboost_date_time-vc142-mt-sgd-x32-1_75.lib",
 			"src/external/FX11/Bin/Desktop_2019_Win10/Win32/Debug/Effects11d.lib",
 			"src/external/DirectXTK/Bin/Desktop_2019/Win32/Debug/DirectXTK.lib";
-			Config = {"*-*-debug-*"}
+			Config = {"win32-*-debug"}
 		},
 		{
 			"src/external/boost/stage/lib/libboost_chrono-vc142-mt-s-x32-1_75.lib",
@@ -117,7 +119,28 @@ local cinematicTools = SharedLibrary {
 			"src/external/boost/stage/lib/libboost_date_time-vc142-mt-s-x32-1_75.lib",
 			"src/external/FX11/Bin/Desktop_2019_Win10/Win32/Release/Effects11.lib",
 			"src/external/DirectXTK/Bin/Desktop_2019/Win32/Release/DirectXTK.lib";
-			Config = {"*-*-release"}
+			Config = {"win32-*-release"}
+		},
+		-- Legacy DirectX SDK dependency (x64).
+		{
+			"src/external/DirectX/Lib/x64/d3dx11.lib";
+			Config = {"win64-*-*"}
+		},
+		{
+			"src/external/boost/stage/lib/libboost_chrono-vc142-mt-sgd-x64-1_75.lib",
+			"src/external/boost/stage/lib/libboost_system-vc142-mt-sgd-x64-1_75.lib",
+			"src/external/boost/stage/lib/libboost_date_time-vc142-mt-sgd-x64-1_75.lib",
+			"src/external/FX11/Bin/Desktop_2019_Win10/x64/Debug/Effects11d.lib",
+			"src/external/DirectXTK/Bin/Desktop_2019/x64/Debug/DirectXTK.lib";
+			Config = {"win64-*-debug"}
+		},
+		{
+			"src/external/boost/stage/lib/libboost_chrono-vc142-mt-s-x64-1_75.lib",
+			"src/external/boost/stage/lib/libboost_system-vc142-mt-s-x64-1_75.lib",
+			"src/external/boost/stage/lib/libboost_date_time-vc142-mt-s-x64-1_75.lib",
+			"src/external/FX11/Bin/Desktop_2019_Win10/x64/Release/Effects11.lib",
+			"src/external/DirectXTK/Bin/Desktop_2019/x64/Release/DirectXTK.lib";
+			Config = {"win64-*-release"}
 		}
 	}
 }

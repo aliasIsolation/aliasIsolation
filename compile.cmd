@@ -2,15 +2,20 @@
 setlocal enabledelayedexpansion
 
 rem If we are provided with a build configuration, then use that.
-if not "%1" == "" (
-	set "CONFIGURATION=%1"
+if "%1" == "debug" (
+	set "CONFIGURATION=debug"
 ) else (
 	rem Default the build to release if we have no parameter stating otherwise.
 	set "CONFIGURATION=release"
 )
 
-rem x64 builds are not yet supported, force the build target architecture to x86.
-set "ARCHITECTURE=x86"
+rem If we are provided with a build architecture, then use that.
+if "%2" == "x64" (
+	set "ARCHITECTURE=x64"
+) else (
+	rem Default the build to x86 for now if we have no parameter stating otherwise.
+	set "ARCHITECTURE=x86"
+)
 
 rem Check for VSWhere on an x64 system and populate the VSWHEREPATH variable with that value.
 if exist "%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" (
@@ -47,7 +52,7 @@ if defined %MSBUILD% (
 	rem Enter the Boost directory temporarily.
 	pushd src\external\boost
 	@echo off
-	call .\build_boost.bat %CONFIGURATION%
+	call .\build_boost.bat %CONFIGURATION% %ARCHITECTURE%
 	popd
 
 	echo.
@@ -69,7 +74,11 @@ if defined %MSBUILD% (
 
 	echo.
 	echo [Building Alias Isolation...]
-	tools\tundra2\bin\tundra2 %CONFIGURATION%
+	if "%ARCHITECTURE%" == "x64" (
+		tools\tundra2\bin\tundra2 win64-msvc-%CONFIGURATION%-default
+	) else (
+		tools\tundra2\bin\tundra2 win32-msvc-%CONFIGURATION%-default
+	)
 
 	goto END
 ) else (

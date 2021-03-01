@@ -31,7 +31,7 @@ local common = {
 
 Build {
 	Units = "units.lua",
-	Configs = {	
+	Configs = {
 		Config {
 			Name = "win64-msvc",
 			SupportedHosts = { "windows" },
