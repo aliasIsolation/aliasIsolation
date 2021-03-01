@@ -12,9 +12,7 @@ Credits: @ 2011
 #include "Renderer.h" 
 #include "shader_fx.h" 
 
-#pragma comment (lib, "legacy_stdio_definitions.lib")
-#pragma comment (lib, "DXErr")
-#pragma comment (lib, "D3D11.lib")
+#pragma comment (lib, "D3D11.lib") 
 #pragma comment (lib, "D3DX11.lib") 
 #pragma comment (lib, "d3dcompiler.lib") 
 //#pragma comment (lib, "Effects11.lib") 
