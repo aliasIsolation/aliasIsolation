@@ -72,12 +72,13 @@ goto END
 rem Alert the user that the configuration they requested doesn't exist.
 echo [Build failed] Target configuration "%1" does not exist.
 echo Only targets "release" and "debug" are currently supported.
-goto END
+exit 1
 
 :ERR_INVALID_BUILD_ARCHITECTURE
 rem Alert the user that the architecture they requested is not supported.
 echo [Build failed] Target architecture "%2" is not supported.
 echo Only architectures "x86" and "x64" are currently supported.
+exit 1
 
 :END
 echo.

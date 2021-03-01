@@ -62,6 +62,12 @@ if defined %MSBUILD% (
 	rem FX11 does not have this issue as they set _WIN32_WINNT to 0x0601 (Windows 7 minimum) like we do.
 	"%MSBUILD%" -nologo -m -target:DirectXTK_Desktop_2019 -property:Configuration=%CONFIGURATION%;Platform=%ARCHITECTURE% src/external/DirectXTK/DirectXTK_Desktop_2019_Win7.sln
 
+	rem If we do not have an errorlevel of 0, then something went wrong during the DirectXTK build.
+	if not %ERRORLEVEL% == 0 (
+		echo [Build failed] DirectXTK failed to build.
+		exit %ERRORLEVEL%
+	)
+
 	echo.
 	echo [Building FX11...]
 	rem HACK! FX11 uses a different platform name for x86 from DirectXTK.
@@ -72,12 +78,24 @@ if defined %MSBUILD% (
 		"%MSBUILD%" -nologo -m -target:Effects11 -property:Configuration=%CONFIGURATION%;Platform=%ARCHITECTURE% src/external/FX11/Effects11_2019_Win10.sln
 	)
 
+	rem If we do not have an errorlevel of 0, then something went wrong during the FX11 build.
+	if not %ERRORLEVEL% == 0 (
+		echo [Build failed] FX11 failed to build.
+		exit %ERRORLEVEL%
+	)
+
 	echo.
 	echo [Building Alias Isolation...]
 	if "%ARCHITECTURE%" == "x64" (
 		tools\tundra2\bin\tundra2 win64-msvc-%CONFIGURATION%-default
 	) else (
 		tools\tundra2\bin\tundra2 win32-msvc-%CONFIGURATION%-default
+	)
+
+	rem If we do not have an errorlevel of 0, then something went wrong during the Tundra build.
+	if not %ERRORLEVEL% == 0 (
+		echo [Build failed] Alias Isolation failed to build.
+		exit %ERRORLEVEL%
 	)
 
 	goto END
@@ -88,17 +106,18 @@ if defined %MSBUILD% (
 :ERR_NO_VSWHERE
 echo.
 echo [Build failed] Failed to find vswhere.exe. Do you have Visual Studio installed?
-goto END
+exit 2
 
 :ERR_NO_MSBUILD
 echo.
 echo [Build failed] Failed to find MSBuild.exe. Do you have Visual Studio installed?
-goto END
+exit 2
 
 :ERR_NO_BUILD_BOOST_BAT
 echo.
 echo [Build failed] Failed to find build_boost.bat in src\external\boost. Are you running this script from the right place?
+exit 2
 
 :END
 echo.
-echo Finished build.
+echo [Build success] Build complete.

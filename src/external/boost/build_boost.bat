@@ -28,11 +28,19 @@ rem Ask B2 to compile boost with the configuration we need.
 rem Release or debug, static runtime linking (a static library), multithreaded, 32 or 64 bit address model.
 rem Boost's architecture is always x86, even for x64 builds, only the address model changes.
 b2.exe %BOOSTCONFIGURATION% runtime-link=static threading=multi address-model=%BOOSTADDRESSMODEL% architecture=x86 --with-chrono --with-system --with-date_time
+
+rem If we do not have an errorlevel of 0, then something went wrong during the Boost build.
+if not %ERRORLEVEL% == 0 (
+	echo [Build failed] Boost failed to build.
+	exit %ERRORLEVEL%
+)
+
 goto END
 
 :ERR_NO_BOOTSTRAP_BAT
 echo.
 echo [Build failed] Failed to find bootstrap.bat. Have you copied Boost's source code to src/external/boost?
+exit 2
 
 :END
 echo.
