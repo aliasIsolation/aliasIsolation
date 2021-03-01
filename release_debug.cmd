@@ -1,4 +1,4 @@
 @echo off
 setlocal enabledelayedexpansion
 
-call .\release.cmd debug
+call .\release.cmd debug %1
