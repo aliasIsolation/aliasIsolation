@@ -1,0 +1,34 @@
+name: MSBuild
+
+on: [push]
+
+env:
+  # Configuration type and architecture to build.
+  # You can convert this to a build matrix if you need coverage of multiple configuration types.
+  # https://docs.github.com/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
+  BUILD_CONFIGURATION: release
+  BUILD_ARCHITECTURE: x86
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Add MSBuild to PATH
+      uses: microsoft/setup-msbuild@v1
+
+    - name: Build
+      working-directory: ${{env.GITHUB_WORKSPACE}}
+      # Build Alias Isolation!
+      run: release.cmd ${{env.BUILD_CONFIGURATION}} ${{env.BUILD_ARCHITECTURE}}
+      
+    - name: Upload Build Artifacts
+      uses: actions/upload-artifact@v2.2.3
+      with:
+        # Artifact name
+        name: ${{env.BUILD_CONFIGURATION}} ${{env.BUILD_ARCHITECTURE}}
+        # Use the release.cmd artifacts path (a folder called "release").
+        path: ./release
+        if-no-files-found: error
