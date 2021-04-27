@@ -8,6 +8,9 @@ env:
   # https://docs.github.com/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
   BUILD_CONFIGURATION: release
   BUILD_ARCHITECTURE: x86
+  BOOST_VERSION: 1.75.0
+  BOOST_SOURCE_DIRECTORY: boost_1_75_0
+  BOOST_SOURCE_LOCATION: src\external\boost
 
 jobs:
   build:
@@ -19,28 +22,35 @@ jobs:
     - name: Add MSBuild to PATH
       uses: microsoft/setup-msbuild@v1
 
-    - name: Download latest supported version of Boost
+    - name: Download Boost ${{env.BOOST_VERSION}}
       uses: carlosperate/download-file-action@v1.0.3
       id: download-boost-source
       with:
         # Boost source 7zip package URL.
-        file-url: https://boostorg.jfrog.io/artifactory/main/release/1.76.0/source/boost_1_76_0.7z
+        file-url: https://boostorg.jfrog.io/artifactory/main/release/${{env.BOOST_VERSION}}/source/${{env.BOOST_SOURCE_DIRECTORY}}.7z
         # Temporary directory for the Boost source archive during build.
         location: C:\Temp
 
     - name: Print out Boost source archive location
       run: echo "Downloaded Boost source archive to ${{steps.download-boost-source.outputs.file-path}}"
 
-    - name: Extract the Boost source archive to external/boost
+    - name: Extract the Boost source archive
       working-directory: ${{env.GITHUB_WORKSPACE}}
-      run: 7z.exe x ${{steps.download-boost-source.outputs.file-path}} -osrc\external\boost && move src\external\boost\boost_1_76_0\* src\external\boost
-        && rmdir /s src\external\boost\boost_1_76_0
+      run: 7z.exe x ${{steps.download-boost-source.outputs.file-path}} -osrc\external\boost
+
+    - name: Move the Boost source files to the location expected by Tundra
+      working-directory: ${{env.GITHUB_WORKSPACE}}
+      run: move src\external\boost\${{env.BOOST_SOURCE_DIRECTORY}}\* src\external\boost
+
+    - name: Remove unneeded Boost source directory
+      working-directory: ${{env.GITHUB_WORKSPACE}}
+      run: rmdir src\external\boost\${{env.BOOST_SOURCE_DIRECTORY}} /s
 
     - name: Build Alias Isolation
       working-directory: ${{env.GITHUB_WORKSPACE}}
       # Build Alias Isolation!
       run: ./release.cmd ${{env.BUILD_CONFIGURATION}} ${{env.BUILD_ARCHITECTURE}}
-      
+
     - name: Upload build artifacts
       uses: actions/upload-artifact@v2.2.3
       with:
