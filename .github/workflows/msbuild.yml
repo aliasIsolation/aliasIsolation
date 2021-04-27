@@ -44,7 +44,7 @@ jobs:
 
     - name: Remove unneeded Boost source directory
       working-directory: ${{env.GITHUB_WORKSPACE}}
-      run: rmdir src\external\boost\${{env.BOOST_SOURCE_DIRECTORY}} /s
+      run: rmdir src\external\boost\${{env.BOOST_SOURCE_DIRECTORY}}
 
     - name: Build Alias Isolation
       working-directory: ${{env.GITHUB_WORKSPACE}}
