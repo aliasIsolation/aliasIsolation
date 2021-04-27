@@ -22,7 +22,7 @@ jobs:
     - name: Build
       working-directory: ${{env.GITHUB_WORKSPACE}}
       # Build Alias Isolation!
-      run: release.cmd ${{env.BUILD_CONFIGURATION}} ${{env.BUILD_ARCHITECTURE}}
+      run: ./release.cmd ${{env.BUILD_CONFIGURATION}} ${{env.BUILD_ARCHITECTURE}}
       
     - name: Upload Build Artifacts
       uses: actions/upload-artifact@v2.2.3
@@ -30,5 +30,5 @@ jobs:
         # Artifact name
         name: ${{env.BUILD_CONFIGURATION}} ${{env.BUILD_ARCHITECTURE}}
         # Use the release.cmd artifacts path (a folder called "release").
-        path: ./release
+        path: release
         if-no-files-found: error
