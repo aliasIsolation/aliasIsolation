@@ -19,12 +19,29 @@ jobs:
     - name: Add MSBuild to PATH
       uses: microsoft/setup-msbuild@v1
 
-    - name: Build
+    - name: Download latest supported version of Boost
+      uses: carlosperate/download-file-action@v1.0.3
+      id: download-boost-source
+      with:
+        # Boost source 7zip package URL.
+        file-url: https://boostorg.jfrog.io/artifactory/main/release/1.76.0/source/boost_1_76_0.7z
+        # Temporary directory for the Boost source archive during build.
+        location: C:\Temp
+
+    - name: Print out Boost source archive location
+      run: echo "Downloaded Boost source archive to ${{steps.download-boost-source.outputs.file-path}}"
+
+    - name: Extract the Boost source archive to external/boost
+      working-directory: ${{env.GITHUB_WORKSPACE}}
+      run: 7z.exe x ${{steps.download-boost-source.outputs.file-path}} -osrc\external\boost && mv src\external\boost\boost_1_76_0 src\external\boost
+        && rmdir src\external\boost\boost_1_76_0
+
+    - name: Build Alias Isolation
       working-directory: ${{env.GITHUB_WORKSPACE}}
       # Build Alias Isolation!
       run: release.cmd ${{env.BUILD_CONFIGURATION}} ${{env.BUILD_ARCHITECTURE}}
       
-    - name: Upload Build Artifacts
+    - name: Upload build artifacts
       uses: actions/upload-artifact@v2.2.3
       with:
         # Artifact name
