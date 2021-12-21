@@ -24,6 +24,7 @@
 #include "shaderHooks.h"
 #include "dllParams.h"
 #include "settings.h"
+#include "menu.h"
 
 
 extern SharedDllParams	g_dllParams;
@@ -36,7 +37,6 @@ FrameConstants			g_frameConstants;
 AlienResources			g_alienResources;
 
 extern ShaderHandle		g_sharpenPsHandle;
-
 
 // ----------------------------------------------------------------------------------------------------------------
 
@@ -158,7 +158,15 @@ void STDMETHODCALLTYPE PSSetShader_hook(
 		g_alienResources.velocityRtv = rtv;
 
 		CComPtr<ID3D11Resource> rtRes = nullptr;
-		if (rtv) rtv->GetResource(&rtRes.p);
+		if (rtv)
+		{
+			rtv->GetResource(&rtRes.p);
+		}
+		else
+		{
+			LOG_MSG("[aliasIsolation::rendering] FATAL ERROR - rtv->GetResource(&rtRes.p) - Failed to get resource from render target view!\n", "");
+			DebugBreak();
+		}
 
 		g_alienResources.velocitySrv = srvFromTex((ID3D11Texture2D*)rtRes.p);
 	}
@@ -219,6 +227,18 @@ HRESULT WINAPI ResizeBuffers_hook(
 	releaseResourceViews();
 
 	return g_d3dHookOrig.ResizeBuffers(swapChain, BufferCount, Width, Height, NewFormat, SwapChainFlags);
+}
+
+// ----------------------------------------------------------------------------------------------------------------
+
+HRESULT WINAPI Present_hook(
+	IDXGISwapChain* swapChain,
+	UINT        SyncInterval,
+	UINT        Flags
+) {
+	Menu::DrawMenu();
+
+	return g_d3dHookOrig.Present(swapChain, SyncInterval, Flags);
 }
 
 // ----------------------------------------------------------------------------------------------------------------
@@ -286,6 +306,7 @@ const DXGI_SWAP_CHAIN_DESC *pSwapChainDesc,
 	HOOK_CONTEXT_METHOD(Draw);
 
 	HOOK_SWAPCHAIN_METHOD(ResizeBuffers);
+	HOOK_SWAPCHAIN_METHOD(Present);
 
 	taaHookApi(*ppImmediateContext);
 
@@ -299,6 +320,7 @@ const DXGI_SWAP_CHAIN_DESC *pSwapChainDesc,
 	enableMethodHook(g_d3dHooks.CreateVertexShader);
 	enableMethodHook(g_d3dHooks.CreateSamplerState);
 	enableMethodHook(g_d3dHooks.ResizeBuffers);
+	enableMethodHook(g_d3dHooks.Present);
 
 #if _DEBUG
 	if (AllocConsole())
@@ -310,6 +332,9 @@ const DXGI_SWAP_CHAIN_DESC *pSwapChainDesc,
 #endif
 
 	Profiler::GlobalProfiler.Initialize(g_device, *ppImmediateContext);
+
+	// Initialise the Alias Isolation menu.
+	Menu::InitMenu(*ppSwapChain);
 
 	return res;
 }
@@ -336,20 +361,23 @@ void hookRendering()
 	else
 	{
 		//ret = MH_ERROR_MODULE_NOT_FOUND;
+		LOG_MSG("[aliasIsolation::rendering] GetModuleHandleA(\"d3d11\") failed: MH_ERROR_MODULE_NOT_FOUND\n", "");
 		return;
 	}
 
 	if (ret != MH_OK)
 	{
 		char buf[256];
-		sprintf(buf, "MH_CreateHookApi() failed: %d", ret);
+		sprintf_s(buf, "MH_CreateHookApi() failed: %d\n", ret);
 		MessageBoxA(NULL, buf, NULL, NULL);
 		return;
 	}
 
 	MH_CHECK(MH_EnableHook(g_d3dHooks.D3D11CreateDeviceAndSwapChain));
+	LOG_MSG("[aliasIsolation::rendering] MH_EnableHook(g_d3dHooks.D3d11CreateDeviceAndSwapChain)\n", "");
 
 	ShaderRegistry::startCompilerThread();
+	LOG_MSG("[aliasIsolation::rendering] ShaderRegistry::startCompilerThread()\n", "");
 }
 
 void unhookRendering()

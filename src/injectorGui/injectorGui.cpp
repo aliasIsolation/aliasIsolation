@@ -197,7 +197,7 @@ int CALLBACK WinMain(
 	launchButton.caption("Launch Alien: Isolation");
 	launchButton.events().click([&](const arg_click&){
 		if (isInstallPathValid()) {
-			//onInject(aiExePath, cinematicToolsCheckbox.checked());
+			onInject(aiExePath, cinematicToolsCheckbox.checked());
 		}
 	});
 
@@ -237,6 +237,7 @@ void onInject(const std::string& exePathString, bool cinematicToolsEnable)
 	fs::path aiInstallDir = exePath.parent_path();
 
 	const bool isSteamVersion = fs::exists(aiInstallDir / "STEAM_API.DLL");
+	const bool isEGSVersion = fs::exists(aiInstallDir / "EOSSDK-Win32-Shipping.dll");
 	const std::string aliasIsolationDllPath = getAliasIsolationDllPath();
 
 	if (isSteamVersion)
@@ -245,6 +246,14 @@ void onInject(const std::string& exePathString, bool cinematicToolsEnable)
 		if (steamProcId)
 		{
 			injectIntoProcess(steamProcId, aliasIsolationDllPath);
+		}
+	}
+	else if (isEGSVersion)
+	{
+		const DWORD egsProcId = findProcess("EpicGamesLauncher.exe");
+		if (egsProcId)
+		{
+			injectIntoProcess(egsProcId, aliasIsolationDllPath);
 		}
 	}
 
@@ -388,6 +397,10 @@ void detach()
 	SharedDllParams dllParams;
 	ZeroMemory(&dllParams, sizeof(dllParams));
 	dllParams.terminate = true;
+	setSharedDllParams(dllParams);
+
+	// Reset the terminate flag back to false again so we don't terminate on next launch.
+	dllParams.terminate = false;
 	setSharedDllParams(dllParams);
 }
 

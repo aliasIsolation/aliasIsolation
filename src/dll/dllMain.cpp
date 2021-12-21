@@ -17,7 +17,7 @@ namespace fs = std::filesystem;
 #include "injection.h"
 #include "crashHandler.h"
 #include "settings.h"
-
+#include "utilities.h"
 
 SharedDllParams					g_dllParams;
 std::vector<CreateProcessW_t>	CreateProcessW_orig;
@@ -92,7 +92,7 @@ BOOL WINAPI CreateProcessW_hook(
 	// Instead, we keep a history of the hooks we replaced, and call them based on the re-entrance.
 	CreateProcessW_t origFn = CreateProcessW_orig[CreateProcessW_orig.size() - reentranceCountCreateProcessW - 1];
 
-	if (ends_with(appName, L"\\ai.exe") || ends_with(appName, L"\\steam.exe"))
+	if (ends_with(appName, L"\\ai.exe") || ends_with(appName, L"\\steam.exe") || ends_with(appName, L"\\epicgameslauncher.exe"))
 	{
 		bool wasSuspended = (dwCreationFlags & CREATE_SUSPENDED) != 0;
 		dwCreationFlags |= CREATE_SUSPENDED;
@@ -148,10 +148,14 @@ void disableShaderHooks();
 // It will also monitor the keyboard for Alias Isolation disable/enable hotkeys.
 DWORD WINAPI terminationWatchThread(void*)
 {
+	SetThreadDescription(GetCurrentThread(), L"AliasIsolation_TerminationWatchThread");
+
 	while (true) {
 		SharedDllParams params = getSharedDllParams();
 
 		if (params.terminate) {
+			LOG_MSG("[aliasIsolation::terminationWatchThread] Terminating...\n", "");
+
 			unhookRendering();
 			MH_DisableHook(&SetUnhandledExceptionFilter);
 			uninstallCrashHandler();
@@ -171,6 +175,7 @@ DWORD WINAPI terminationWatchThread(void*)
 			if (0 != memcmp(CreateProcessW_hookBytesHead, &CreateProcessW, sizeof(CreateProcessW_hookBytesHead)))
 			{
 				//MessageBoxA(NULL, "CreateProcessW hook stolen!", NULL, NULL);
+				LOG_MSG("[aliasIsolation::terminationWatchThread] CreateProcessW hook stolen!\n", "");
 				installCreateProcessHook();
 			}
 
@@ -194,31 +199,61 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 	{
 	case DLL_PROCESS_ATTACH:
 	{
+#ifdef _DEBUG
+		AllocConsole();
+		freopen("CONOUT$", "w", stdout);
+		freopen("CONOUT$", "w", stderr);
+#endif
+
 		//MessageBoxA(NULL, "DLL_PROCESS_ATTACH", NULL, NULL);
 
 		MH_CHECK(MH_Initialize());
+		LOG_MSG("[aliasIsolation::dllMain] MH_Initialize()\n", "");
 
 		// Set our crash handler and prevent the game from overriding it.
 		installCrashHandler();
 		MH_CHECK(MH_CreateHook(&SetUnhandledExceptionFilter, &SetUnhandledExceptionFilter_hook, &SetUnhandledExceptionFilter_orig));
+		LOG_MSG("[aliasIsolation::dllMain] MH_CreateHook(&SetUnhandledExceptionFilter)\n", "");
 		MH_CHECK(MH_EnableHook(&SetUnhandledExceptionFilter));
+		LOG_MSG("[aliasIsolation::dllMain] MH_EnableHook(&SetUnhandledExceptionFilter)\n", "");
 
 		g_dllParams = getSharedDllParams();
+		LOG_MSG("[aliasIsolation::dllMain] getSharedDllParams()\n", "");
+
+		// We shouldn't be told to terminate immediately after injection, this is probably due to the leftover state from the injector executables.
+		if (g_dllParams.terminate)
+		{
+			LOG_MSG("[aliasIsolation::dllMain] Reset g_dllParams.terminate to false. Leftover state from injector executables?\n", "");
+			g_dllParams.terminate = false;
+			setSharedDllParams(g_dllParams);
+		}
+
 		GetModuleFileNameA(hModule, g_modulePath, sizeof(g_modulePath));
-		fs::path settingsFile = fs::path(g_dllParams.aliasIsolationRootDir) / "settings.txt";
-		setSettingsFilePath(settingsFile.string().c_str());
+		LOG_MSG("[aliasIsolation::dllMain] GetModuleFileNameA()\n", "");
+		
+		std::string settingsFile = getSettingsFilePath();
+		LOG_MSG("[aliasIsolation::dllMain] getSettingsFilePath()\n", "");
+
+		setSettingsFilePath(settingsFile.c_str());
+		LOG_MSG("[aliasIsolation::dllMain] setSettingsFilePath()\n", "");
 
 		installCreateProcessHook();
+		LOG_MSG("[aliasIsolation::dllMain] installCreateProcessHook()\n", "");
 
 		disableOvr();
+		LOG_MSG("[aliasIsolation::dllMain] disableOvr()\n", "");
+
 		hookRendering();
+		LOG_MSG("[aliasIsolation::dllMain] hookRendering()\n", "");
 
 		g_hModule = hModule;
 		CreateThread(NULL, NULL, &terminationWatchThread, NULL, NULL, NULL);
+		LOG_MSG("[aliasIsolation::dllMain] CreateThread(&terminationWatchThread)\n", "");
 
 		if (g_dllParams.cinematicToolsEnable && GetModuleHandleA("AI.exe"))
 		{
 			loadCinematicTools();
+			LOG_MSG("[aliasIsolation::dllMain] loadCinematicTools()\n", "");
 		}
 
 		break;
@@ -229,10 +264,13 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 		if (ovr_Initialize_handle)
 		{
 			MH_CHECK(MH_DisableHook(ovr_Initialize_handle));
+			LOG_MSG("[aliasIsolation::dllMain] MH_DisableHook(ovr_Initialize_handle)\n", "");
 		}
 
 		unhookRendering();
+		LOG_MSG("[aliasIsolation::dllMain] unhookRendering()\n", "");
 		MH_Uninitialize();
+		LOG_MSG("[aliasIsolation::dllMain] MH_Uninitialize()\n", "");
 
 		break;
 	}

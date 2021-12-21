@@ -30,6 +30,7 @@ void ErrorDescription(HRESULT hr)
 		(LPTSTR)&szErrMsg, 0, NULL) != 0)
 	{
 		_tprintf(TEXT("[aliasIsolation::resourceUtil] %s"), szErrMsg);
+		MessageBoxA(NULL, "Encountered fatal error:\nError description: " + (char)szErrMsg, "Fatal Error", MB_ICONERROR);
 		LocalFree(szErrMsg);
 	}
 	else

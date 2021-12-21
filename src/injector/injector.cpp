@@ -10,11 +10,17 @@
 
 #include "dllParams.h"
 #include "injection.h"
+#include <boost/bind/bind.hpp>
+#include <boost/property_tree/ptree.hpp>
+#include <boost/property_tree/json_parser.hpp>
+
+#define BOOST_BIND_GLOBAL_PLACEHOLDERS
 
 DWORD		getThreadIdFromProcName(const char * ProcName);
 
 std::string	getAliasIsolationDllPath();
 bool		getAiSteamInstallPath(std::string *const result);
+bool		getAiEGSInstallPath(std::string* const result);
 
 bool		inject(const std::string& arg);
 
@@ -31,8 +37,12 @@ int main(int argc, char* argv[])
 	if ("detach" == arg) {
 		SharedDllParams dllParams;
 		ZeroMemory(&dllParams, sizeof(dllParams));
-		dllParams.terminate = "detach" == arg;
+		dllParams.terminate = true;
 		setSharedDllParams(dllParams);
+
+		// Reset the terminate flag back to false again so we don't terminate on next launch.
+		//dllParams.terminate = false;
+		//setSharedDllParams(dllParams);
 		return 0;
 	}
 
@@ -43,15 +53,40 @@ int main(int argc, char* argv[])
 
 	if (arg.empty()) {
 		std::string installPath;
-		if (getThreadIdFromProcName("Steam.exe") && getAiSteamInstallPath(&installPath)) {
+		if (getAiSteamInstallPath(nullptr) && getAiEGSInstallPath(nullptr)) {
+			printf_s("Detected two installations of Alien: Isolation (Steam and Epic Games Store), please choose which installation you would like to launch by running this injector with the \"-steam\" or \"-egs\" parameter.\n");
+			printf_s("For example: Create a shortcut pointing to \"aliasIsolationInjector.exe -steam\" to launch the Steam version of Alien: Isolation.\n");
+			getchar();
+			return 1;
+		}
+		else if (getThreadIdFromProcName("Steam.exe") && getAiSteamInstallPath(&installPath)) {
 			printf("Steam already running! Injecting into it, and starting AI.");
 			inject("steam");
 			inject(installPath);
 			return 0;
-		} else if (!getAiSteamInstallPath(&arg)) {
+		} 
+		else if (getThreadIdFromProcName("EpicGamesLauncher.exe") && getAiEGSInstallPath(&installPath)) {
+			printf_s("Epic Games Launcher already running! Injecting into it, and starting AI.");
+			inject("epicgameslauncher");
+			inject(installPath);
+			return 0;
+		}
+		else if (!getAiSteamInstallPath(&arg) && !getAiEGSInstallPath(&arg)) {
 			printf("Could not get the AI install path.\n");
 			getchar();
 			return 1;
+		}
+	}
+	else
+	{
+		// Check if the user has specified that they want to launch a specific version of the game.
+		if (!arg.compare("-steam"))
+		{
+			getAiSteamInstallPath(&arg);
+		}
+		else if (!arg.compare("-egs"))
+		{
+			getAiEGSInstallPath(&arg);
 		}
 	}
 	
@@ -75,7 +110,11 @@ bool inject(const std::string& arg)
 
 	if ("steam" == arg) {
 		procName = "Steam.exe";
-	} else {
+	}
+	else if ("epicgameslauncher" == arg) {
+		procName = "EpicGamesLauncher.exe";
+	}
+	else {
 		STARTUPINFO si;
 		ZeroMemory( &si, sizeof(si) );
 		si.cb = sizeof(si);
@@ -185,8 +224,48 @@ bool getAiSteamInstallPath(std::string *const result)
 			char	buf[MAX_PATH];
 			DWORD	bufSize = sizeof(buf);
 			if (ERROR_SUCCESS == RegQueryValueExA(hKey, "InstallLocation", 0, nullptr, (LPBYTE)buf, &bufSize)) {
-				*result = buf;
+				// Allow passing a nullptr to see if we were able to get the AI Steam install path, but do not try to write data to it.
+				if (result != nullptr)
+				{
+					*result = buf;
+				}
+
 				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+bool getAiEGSInstallPath(std::string *const result)
+{
+	std::string egsLauncherInstalledPath = "C:\\ProgramData\\Epic\\UnrealEngineLauncher\\LauncherInstalled.dat";
+
+	boost::property_tree::ptree pt;
+	boost::property_tree::read_json(egsLauncherInstalledPath, pt);
+
+	// Iterate through each EGS game install element.
+	for (auto& installation : pt.get_child("InstallationList")) {
+		// Iterate through each install's property elements.
+		for (auto& installationInfo : installation.second) {
+			// Are we dealing with the install location element?
+			if (!installationInfo.first.compare("InstallLocation"))
+			{
+				std::string installLocation = installationInfo.second.get_value<std::string>();
+
+				// Make sure this install location contains the string "AlienIsolation", this is the hardcoded part of the path and is easy to identify.
+				if (installLocation.find("AlienIsolation") != std::string::npos)
+				{
+					// Allow passing a nullptr to see if we were able to get the game's EGS install path, but do not try to write data to it.
+					if (result != nullptr)
+					{
+						// Set the value of result to the path to Alien: Isolation's EGS directory.
+						*result = installLocation;
+					}
+
+					return true;
+				}
 			}
 		}
 	}

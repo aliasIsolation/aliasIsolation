@@ -13,6 +13,7 @@
 #include "dllParams.h"
 #include "profiler.h"
 #include "settings.h"
+#include "utilities.h"
 
 extern ID3D11Device*		g_device;
 extern ID3D11DeviceContext*	g_deferred_context;
@@ -32,7 +33,7 @@ namespace
 // For example, Fraps nukes the Present hook of Cinematic Tools.
 extern "C" __declspec(dllexport) void __cdecl aliasIsolation_hookableOverlayRender(ID3D11Device* device, ID3D11DeviceContext* context)
 {
-// We can't compile inline assembly under a 64-bit operating system.
+// We can't compile inline assembly for a 64-bit build target.
 #ifndef _WIN64
 	__asm {
 		nop; nop; nop; nop;
@@ -88,7 +89,7 @@ void modifySharpenPass(ID3D11DeviceContext *const context)
 		resourcesCreated = true;
 
 		{
-			const std::string logoPath = std::string(g_dllParams.aliasIsolationRootDir) + "/data/textures/aliasIsolationLogo.png";
+			const std::string logoPath = getDataFilePath("textures\\aliasIsolationLogo.png", false);
 			int x, y, n;
 			unsigned char *data = stbi_load(logoPath.c_str(), &x, &y, &n, 4);
 			if (data && 4 == n)

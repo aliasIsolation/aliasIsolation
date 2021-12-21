@@ -1,5 +1,6 @@
 #include "shaderRegistry.h"
 #include "dllParams.h"
+#include "utilities.h"
 
 #include <mutex>
 #include <map>
@@ -8,7 +9,7 @@
 
 #include <windows.h>
 #include <d3d11.h>
-#include "D3Dcompiler.h"
+#include <d3dcompiler.h>
 
 
 extern SharedDllParams	g_dllParams;
@@ -45,7 +46,7 @@ namespace ShaderRegistry
 
 
 	ShaderHandle addPixelShader(std::string path) {
-		path = (std::string(g_dllParams.aliasIsolationRootDir) + "/data/shaders/") + path;
+		path = getDataFilePath("shaders\\" + path, true);
 
 		mutex.lock();
 		{
@@ -64,8 +65,8 @@ namespace ShaderRegistry
 	}
 
 	ShaderHandle addVertexShader(std::string path) {
-		path = (std::string(g_dllParams.aliasIsolationRootDir) + "/data/shaders/") + path;
-
+		path = getDataFilePath("shaders\\" + path, true);
+		
 		mutex.lock();
 		{
 			auto existing = vsPathToHandle.find(path);
@@ -83,7 +84,7 @@ namespace ShaderRegistry
 	}
 
 	ShaderHandle addComputeShader(std::string path) {
-		path = (std::string(g_dllParams.aliasIsolationRootDir) + "/data/shaders/") + path;
+		path = getDataFilePath("shaders\\" + path, true);
 
 		mutex.lock();
 		{
@@ -154,9 +155,23 @@ namespace ShaderRegistry
 											"mainVS";
 
 			HRESULT hr = D3DCompile(
-				sourceBlob.data(), sourceBlob.size(), nullptr,
-				nullptr, nullptr, entryPoint, profile,
-				D3DCOMPILE_ENABLE_STRICTNESS, 0, &shaderBlob, &errorBlob
+				sourceBlob.data(), 
+				sourceBlob.size(), 
+				nullptr, 
+				nullptr, 
+				nullptr, 
+				entryPoint, 
+				profile, 
+#ifdef _DEBUG
+				// Do not optimise shaders during compilation when we are targeting debug.
+				D3DCOMPILE_ENABLE_STRICTNESS,
+#else
+				// Otherwise, enable maximum optimisations for shaders during compilation.
+				D3DCOMPILE_ENABLE_STRICTNESS | D3DCOMPILE_OPTIMIZATION_LEVEL3,
+#endif
+				0, 
+				&shaderBlob, 
+				&errorBlob
 			);
 
 			if (FAILED(hr)) {

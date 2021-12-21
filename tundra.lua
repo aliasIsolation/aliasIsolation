@@ -4,16 +4,18 @@ local common = {
 		CPPDEFS = { 
 			"WINVER=0x0601", -- We are only targeting Windows 7 and above.
 			"_WIN32_WINNT=0x0601", 
-			"_CRT_SECURE_NO_WARNINGS",
-			"_SILENCE_EXPERIMENTAL_FILESYSTEM_DEPRECATION_WARNING",
-			{ "_DEBUG"; Config = "*-*-debug-*"},
+			--"_CRT_SECURE_NO_WARNINGS",
+			--"_SILENCE_EXPERIMENTAL_FILESYSTEM_DEPRECATION_WARNING",
+			{ "_DEBUG"; Config = "*-*-debug-*" },
+			--{ "NDEBUG"; Config = "*-*-release" },
 		},
 		CCOPTS = { 
 			"/FS",	-- fatal error C1041: cannot open program database 'filename.pdb'; if multiple CL.EXE write to the same .PDB file, please use /FS
 			"/DEBUG:FULL", -- Starting with VS2017, the default value for /DEBUG is FASTLINK, which affects debugging on machines where the build products don't exist.
 			"/Zi", -- Removes debugging information from the build products and stores this information in the PDB files instead, reducing overall binary file size.
+			"/W4", -- Enables all 4 levels of compiler warnings, this helps discover potentially hard-to-find issues with the codebase.
 			{ "/Od", "/MTd"; Config = "*-*-debug-*" },
-			{ "/Od", "/MT"; Config = "*-*-release" }, -- /O2 enables a certain subset of compiler optimisations that have an emphasis on execution speed, at the cost of debugging.
+			{ "/Ox", "/MT"; Config = "*-*-release" },
 		},
 		CXXOPTS = { 
 			"/std:c++17",
@@ -21,9 +23,9 @@ local common = {
 			"/DEBUG:FULL",
 			"/Zi",
 			{ "/Od", "/MTd"; Config = "*-*-debug-*" },
-			{ "/Od", "/MT"; Config = "*-*-release" },
+			{ "/Ox", "/MT"; Config = "*-*-release" },
 		},
-		PROGOPTS = {
+		PROGOPTS = { 
 			{"/NODEFAULTLIB:LIBCMT"; Config = "*-*-debug-*"}
 		},
 	}

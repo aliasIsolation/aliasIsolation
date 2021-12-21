@@ -25,6 +25,14 @@ local nana = StaticLibrary {
 	}
 }
 
+local imgui = StaticLibrary {
+	Name = "imgui",
+	Includes = { "src/external/imgui" },
+	Sources = {
+		Glob { Dir = "src/external/imgui", Extensions = {".cpp", ".h"} }
+	}
+}
+
 local crashHandler = StaticLibrary {
 	Name = "crashHandler",
 	Sources = {
@@ -34,12 +42,13 @@ local crashHandler = StaticLibrary {
 
 local dll = SharedLibrary {
 	Name = "aliasIsolation",
-	Depends = { minhook, crashHandler },
+	Depends = { minhook, crashHandler, imgui },
 	Includes = {
 		common_includes,
 		"src/external/glm",
 		"src/external/minhook/include",
 		"src/external/stb",
+		"src/external/imgui",
 	},
 	Sources = {
 		common_sources,
@@ -82,7 +91,6 @@ local cinematicTools = SharedLibrary {
 	Name = "cinematicTools",
 	Depends = { minhook },
 	Includes = {
-		"src/external/DirectX/Include",
 		"src/external/DirectXTK/Inc",
 		"src/external/minhook/include",
 		"src/external/boost",
@@ -100,11 +108,6 @@ local cinematicTools = SharedLibrary {
 			"Shlwapi.lib", "user32.lib", "Advapi32.lib", "Comdlg32.lib", "Gdi32.lib", "Shell32.lib", "psapi.lib", "dbghelp.lib", "XInput.lib";
 			Config = {"win*"}
 		},
-		-- Legacy DirectX SDK dependency (x86).
-		{
-			"src/external/DirectX/Lib/x86/d3dx11.lib";
-			Config = {"win32-*-*"}
-		},
 		{
 			"src/external/boost/stage/lib/libboost_chrono-vc142-mt-sgd-x32-1_75.lib",
 			"src/external/boost/stage/lib/libboost_system-vc142-mt-sgd-x32-1_75.lib",
@@ -120,11 +123,6 @@ local cinematicTools = SharedLibrary {
 			"src/external/FX11/Bin/Desktop_2019_Win10/Win32/Release/Effects11.lib",
 			"src/external/DirectXTK/Bin/Desktop_2019/Win32/Release/DirectXTK.lib";
 			Config = {"win32-*-release"}
-		},
-		-- Legacy DirectX SDK dependency (x64).
-		{
-			"src/external/DirectX/Lib/x64/d3dx11.lib";
-			Config = {"win64-*-*"}
 		},
 		{
 			"src/external/boost/stage/lib/libboost_chrono-vc142-mt-sgd-x64-1_75.lib",

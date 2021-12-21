@@ -191,7 +191,7 @@ bool taaOnDraw(ID3D11DeviceContext* context, ID3D11VertexShader* currentVs, ID3D
 
 			return true;
 		}
-	}	
+	}
 
 	return false;
 }
