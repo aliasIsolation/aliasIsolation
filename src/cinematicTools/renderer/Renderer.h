@@ -1,7 +1,5 @@
 #include <d3d11.h>
 #include <dxgi.h>
-#include "d3dx11.h"
-#include "D3DX11async.h"
 #include <d3dcompiler.h>
 #include "D3dx11effect.h"
 #include <d3d11shader.h>

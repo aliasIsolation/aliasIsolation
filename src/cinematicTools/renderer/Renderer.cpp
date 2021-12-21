@@ -12,8 +12,7 @@ Credits: @ 2011
 #include "Renderer.h" 
 #include "shader_fx.h" 
 
-#pragma comment (lib, "D3D11.lib") 
-#pragma comment (lib, "D3DX11.lib") 
+#pragma comment (lib, "d3d11.lib") 
 #pragma comment (lib, "d3dcompiler.lib") 
 //#pragma comment (lib, "Effects11.lib") 
 
@@ -110,10 +109,10 @@ bool Dx11Renderer::InitializeRenderClass( ID3D11Device* pDevice, ID3D11DeviceCon
 
     /* ********** At this point Font is Initialized :) ********** */ 
 
-    ID3D10Blob *compiledFX = NULL, *errorMsgs = NULL; 
+    ID3DBlob *compiledFX = NULL, *errorMsgs = NULL; 
 
-    if( FAILED( D3DX11CompileFromMemory( shaderRaw, strlen( shaderRaw ), "FillTechFx", NULL, NULL, "FillTech", "fx_5_0", NULL, NULL, NULL, &compiledFX, &errorMsgs, NULL ) ) ) 
-        return false; 
+    if ( FAILED( D3DCompile( shaderRaw, strlen( shaderRaw ), "FillTechFx", NULL, NULL, "FillTech", "fx_5_0", NULL, NULL, &compiledFX, &errorMsgs ) ) )
+        return false;
 
     if( FAILED( D3DX11CreateEffectFromMemory( compiledFX->GetBufferPointer(), compiledFX->GetBufferSize(), 0, this->m_pDevice, &m_pEffect ) ) ) 
         return false; 
