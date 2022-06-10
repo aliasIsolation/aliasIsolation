@@ -152,17 +152,6 @@ DWORD WINAPI terminationWatchThread(void*)
 	SetThreadDescription(GetCurrentThread(), L"AliasIsolation_TerminationWatchThread");
 
 	while (true) {
-		SharedDllParams params = getSharedDllParams();
-
-		if (params.terminate) {
-			LOG_MSG("[aliasIsolation::terminationWatchThread] Terminating...\n", "");
-
-			unhookRendering();
-			MH_DisableHook(&SetUnhandledExceptionFilter);
-			uninstallCrashHandler();
-			FreeLibraryAndExitThread(g_hModule, 0);
-		}
-
 		for (int i = 0; i < 5; ++i) {
 			if ((GetKeyState(VK_CONTROL) & GetKeyState(VK_INSERT) & 0x80u) != 0u) {
 				enableShaderHooks();
@@ -175,7 +164,6 @@ DWORD WINAPI terminationWatchThread(void*)
 			// If not, we install it again.
 			if (0 != memcmp(CreateProcessW_hookBytesHead, &CreateProcessW, sizeof(CreateProcessW_hookBytesHead)))
 			{
-				//MessageBoxA(NULL, "CreateProcessW hook stolen!", NULL, NULL);
 				LOG_MSG("[aliasIsolation::terminationWatchThread] CreateProcessW hook stolen!\n", "");
 				installCreateProcessHook();
 			}

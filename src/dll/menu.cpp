@@ -1,6 +1,5 @@
 #include "menu.h"
 #include "common.h"
-#include "dllParams.h"
 #include "settings.h"
 
 #include <imgui.h>
@@ -119,7 +118,6 @@ void Menu::DrawMenu() {
     if (g_showMenu) {
         g_showDemoWindow = true;
 
-        static SharedDllParams params = getSharedDllParams();
         static bool aliasIsolation_menu_showAboutWindow = false;
         static float aliasIsolation_mod_sharpeningAmount = g_settings.sharpening;
         static float aliasIsolation_mod_chromaticAberrationAmount = g_settings.chromaticAberration;
@@ -128,7 +126,7 @@ void Menu::DrawMenu() {
         
         if (aliasIsolation_menu_showAboutWindow) {
             if (ImGui::Begin("Alias Isolation - About", &aliasIsolation_menu_showAboutWindow, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings)) {
-                ImGui::TextColored(ImVec4(255, 170, 0, 1), "Alias Isolation 1.1.0 (Beta) - Built on %s at %s", __DATE__, __TIME__);
+                ImGui::TextColored(ImVec4(255, 170, 0, 1), "Alias Isolation 1.1.1 (Beta) - Built on %s at %s", __DATE__, __TIME__);
                 ImGui::Text("Dear ImGui %s", ImGui::GetVersion());
                 ImGui::Separator();
                 ImGui::Text("Build information:");
@@ -183,11 +181,6 @@ void Menu::DrawMenu() {
 
             ImGui::SliderFloat("Sharpening Amount", &g_settings.sharpening, 0.0f, 1.0f, "%f");
             ImGui::SliderFloat("Chromatic Aberration Amount", &g_settings.chromaticAberration, 0.0f, 1.0f, "%f");
-            //ImGui::Checkbox("Mod Enabled", &g_aliasIsolation_mod_enabled);
-
-            /*if (ImGui::Button("Unload Alias Isolation")) {
-                params.terminate = true;
-            }*/
 
             ImGui::End();
         }
