@@ -17,14 +17,6 @@ local minhook = StaticLibrary {
 	}
 }
 
-local nana = StaticLibrary {
-	Name = "nana",
-	Includes = { "src/external/nana/include" },
-	Sources = {
-		Glob { Dir = "src/external/nana/source", Extensions = {".cpp", ".h"} }
-	}
-}
-
 local imgui = StaticLibrary {
 	Name = "imgui",
 	Includes = { "src/external/imgui" },
@@ -57,34 +49,6 @@ local dll = SharedLibrary {
 	Libs = {
 		 { "user32.lib", "d3dcompiler.lib", "d3d11.lib", "psapi.lib", "dbghelp.lib"; Config = {"win*"} },
 	},
-}
-
-local injector = Program {
-	Name = "aliasIsolationInjector",
-	Includes = { common_includes, "src/external/boost" },
-	Sources = {
-		common_sources,
-		Glob { Dir = "src/injector", Extensions = {".cpp", ".h"} },
-	},
-	Libs = {
-		 { "Shlwapi.lib", "user32.lib", "Advapi32.lib"; Config = {"win*"} },
-	}
-}
-
-local injectorGui = Program {
-	Name = "aliasIsolationInjectorGui",
-	Depends = { nana, crashHandler },
-	Includes = { common_includes, "src/external/nana/include", "src/external/boost" },
-	Sources = {
-		common_sources,
-		Glob { Dir = "src/injectorGui", Extensions = {".cpp", ".h"} },
-	},
-	Libs = {
-		 { "Shlwapi.lib", "user32.lib", "Advapi32.lib", "Comdlg32.lib", "Gdi32.lib", "Shell32.lib", "psapi.lib", "dbghelp.lib", "ole32.lib"; Config = {"win*"} },
-	},
-	Env = {
-		PROGOPTS = {"/SUBSYSTEM:WINDOWS"}
-	}
 }
 
 local cinematicTools = SharedLibrary {
