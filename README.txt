@@ -51,7 +51,7 @@ Building from source
 
 You need to have Visual Studio 2019. Community Edition works fine.
 
-Download Boost 1.75 and extract it into src/external/boost. For example, you should have "config.hpp" in src/external/boost/boost.
+Download Boost 1.79 and extract it into src/external/boost. For example, you should have "config.hpp" in src/external/boost/boost.
 
 If you want to just build the binaries, but don't care about Visual Studio solution files:
     (Release mode) Just run "compile.cmd". The output will be in "t2-output/win32-msvc-release-default".
