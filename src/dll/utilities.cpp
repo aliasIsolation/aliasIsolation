@@ -1,10 +1,7 @@
 #include "utilities.h"
-#include <dllParams.h>
 
 #include <Windows.h>
 #include <filesystem>
-
-extern SharedDllParams g_dllParams;
 
 std::string rootDir;
 
@@ -13,17 +10,8 @@ std::string getRootDirectory() {
 	// Only fetch the root directory once.
 	if (rootDir.empty())
 	{
-		// g_dllParams values will always take precedence over the fallback values.
-		if (strlen(g_dllParams.aliasIsolationRootDir) > 0)
-		{
-			// Store the path relative to the path from g_dllParams (from the current injectors).
-			rootDir = std::string(g_dllParams.aliasIsolationRootDir);
-		}
-		else
-		{
-			// Store the path relative to the current DLL (really AI.exe since we're injected into it).
-			rootDir = std::filesystem::current_path().string() + "\\mods\\aliasIsolation";
-		}
+		// Store the path relative to the current DLL (really AI.exe since we're injected into it).
+		rootDir = std::filesystem::current_path().string() + "\\mods\\aliasIsolation";
 
 		// Have we got the root directory?
 		if (!rootDir.empty())

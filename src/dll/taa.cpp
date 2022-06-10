@@ -17,12 +17,10 @@
 #include "math.h"
 #include "vtables.h"
 #include "taa.h"
-#include "dllParams.h"
 
 
 extern ID3D11Device*		g_device;
 extern ID3D11DeviceContext*	g_deferred_context;
-extern SharedDllParams		g_dllParams;
 
 
 void renderTaa(ID3D11DeviceContext *const context, ID3D11ShaderResourceView* mainTexView) {

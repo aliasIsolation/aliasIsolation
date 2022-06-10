@@ -12,14 +12,13 @@ namespace fs = std::filesystem;
 
 #include "fnTypes.h"
 #include "rendering.h"
-#include "dllParams.h"
 #include "common.h"
 #include "injection.h"
 #include "crashHandler.h"
 #include "settings.h"
 #include "utilities.h"
 
-SharedDllParams					g_dllParams;
+
 std::vector<CreateProcessW_t>	CreateProcessW_orig;
 enum { CreateProcessW_MaxOrigFnCount = 32 * 1024 * 1024 };
 
@@ -57,11 +56,13 @@ void disableOvr()
 	}
 }
 
+/*
+TODO! Get Cinematic Tools working again.
 void loadCinematicTools()
 {
 	LoadLibraryA(g_dllParams.cinematicToolsDllPath);
 }
-
+*/
 
 char g_modulePath[_MAX_PATH];
 char CreateProcessW_hookBytesHead[8];
@@ -217,17 +218,6 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 		MH_CHECK(MH_EnableHook(&SetUnhandledExceptionFilter));
 		LOG_MSG("[aliasIsolation::dllMain] MH_EnableHook(&SetUnhandledExceptionFilter)\n", "");
 
-		g_dllParams = getSharedDllParams();
-		LOG_MSG("[aliasIsolation::dllMain] getSharedDllParams()\n", "");
-
-		// We shouldn't be told to terminate immediately after injection, this is probably due to the leftover state from the injector executables.
-		if (g_dllParams.terminate)
-		{
-			LOG_MSG("[aliasIsolation::dllMain] Reset g_dllParams.terminate to false. Leftover state from injector executables?\n", "");
-			g_dllParams.terminate = false;
-			setSharedDllParams(g_dllParams);
-		}
-
 		GetModuleFileNameA(hModule, g_modulePath, sizeof(g_modulePath));
 		LOG_MSG("[aliasIsolation::dllMain] GetModuleFileNameA()\n", "");
 		
@@ -250,11 +240,14 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 		CreateThread(NULL, NULL, &terminationWatchThread, NULL, NULL, NULL);
 		LOG_MSG("[aliasIsolation::dllMain] CreateThread(&terminationWatchThread)\n", "");
 
+		/*
+		TODO! Get Cinematic Tools working again.
 		if (g_dllParams.cinematicToolsEnable && GetModuleHandleA("AI.exe"))
 		{
 			loadCinematicTools();
 			LOG_MSG("[aliasIsolation::dllMain] loadCinematicTools()\n", "");
 		}
+		*/
 
 		break;
 	}
