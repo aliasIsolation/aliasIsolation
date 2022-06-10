@@ -8,8 +8,8 @@ env:
   # https://docs.github.com/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
   BUILD_CONFIGURATION: release
   BUILD_ARCHITECTURE: x86
-  BOOST_VERSION: 1.75.0
-  BOOST_SOURCE_DIRECTORY: boost_1_75_0
+  BOOST_VERSION: 1.79.0
+  BOOST_SOURCE_DIRECTORY: boost_1_79_0
   BOOST_SOURCE_LOCATION: src\external\boost
 
 jobs:
