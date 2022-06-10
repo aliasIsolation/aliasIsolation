@@ -40,12 +40,8 @@ set "DESTINATION=%CONFIGURATION%\%ARCHITECTURE%"
 
 echo.
 echo [Copying build products...]
-xcopy /Y t2-output\%TUNDRATARGET%\aliasIsolation.dll %DESTINATION%
+xcopy /Y t2-output\%TUNDRATARGET%\aliasIsolation.dll %DESTINATION%/aliasIsolation.asi
 xcopy /Y t2-output\%TUNDRATARGET%\aliasIsolation.pdb %DESTINATION%
-xcopy /Y t2-output\%TUNDRATARGET%\aliasIsolationInjector.exe %DESTINATION%
-xcopy /Y t2-output\%TUNDRATARGET%\aliasIsolationInjector.pdb %DESTINATION%
-xcopy /Y t2-output\%TUNDRATARGET%\aliasIsolationInjectorGui.exe %DESTINATION%
-xcopy /Y t2-output\%TUNDRATARGET%\aliasIsolationInjectorGui.pdb %DESTINATION%
 xcopy /Y t2-output\%TUNDRATARGET%\cinematicTools.dll %DESTINATION%
 xcopy /Y t2-output\%TUNDRATARGET%\cinematicTools.pdb %DESTINATION%
 
@@ -61,10 +57,6 @@ xcopy /Y /S /E data %DESTINATION%\data
 echo.
 echo [Copying README file...]
 xcopy /Y README.txt %DESTINATION%
-
-echo.
-echo [Creating detachAll.cmd...]
-echo aliasIsolationInjector detach > %DESTINATION%\detachAll.cmd
 
 goto END
 

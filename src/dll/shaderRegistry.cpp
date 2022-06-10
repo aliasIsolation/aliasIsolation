@@ -1,5 +1,4 @@
 #include "shaderRegistry.h"
-#include "dllParams.h"
 #include "utilities.h"
 
 #include <mutex>
@@ -12,7 +11,6 @@
 #include <d3dcompiler.h>
 
 
-extern SharedDllParams	g_dllParams;
 extern ID3D11Device*	g_device;
 
 namespace ShaderRegistry

@@ -10,14 +10,12 @@
 #include "resourceUtil.h"
 #include "shaderRegistry.h"
 #include "alienResources.h"
-#include "dllParams.h"
 #include "profiler.h"
 #include "settings.h"
 #include "utilities.h"
 
 extern ID3D11Device*		g_device;
 extern ID3D11DeviceContext*	g_deferred_context;
-extern SharedDllParams		g_dllParams;
 extern Settings				g_settings;
 
 ShaderHandle				g_sharpenPsHandle;

@@ -22,12 +22,9 @@
 #include "post.h"
 #include "hookedFns.h"
 #include "shaderHooks.h"
-#include "dllParams.h"
 #include "settings.h"
 #include "menu.h"
 
-
-extern SharedDllParams	g_dllParams;
 
 ID3D11Device*			g_device = nullptr;
 ID3D11DeviceContext*	g_deferred_context = nullptr;
