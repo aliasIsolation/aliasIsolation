@@ -87,9 +87,9 @@ if defined %MSBUILD% (
 	echo.
 	echo [Building Alias Isolation...]
 	if "%ARCHITECTURE%" == "x64" (
-		tools\tundra2\bin\tundra2.exe win64-msvc-%CONFIGURATION%-default
+		tools\tundra2\bin\tundra2.exe %TUNDRAEXTRAOPTS% win64-msvc-%CONFIGURATION%-default
 	) else (
-		tools\tundra2\bin\tundra2.exe win32-msvc-%CONFIGURATION%-default
+		tools\tundra2\bin\tundra2.exe %TUNDRAEXTRAOPTS% win32-msvc-%CONFIGURATION%-default
 	)
 
 	rem If we do not have an errorlevel of 0, then something went wrong during the Tundra build.
