@@ -17,6 +17,9 @@ if "%2" == "x64" (
 	set "ARCHITECTURE=x86"
 )
 
+rem Set extra options to be passed to Tundra.
+set "TUNDRAEXTRAOPTS=%3"
+
 rem Check for VSWhere on an x64 system and populate the VSWHEREPATH variable with that value.
 if exist "%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" (
 	set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
@@ -40,6 +43,7 @@ if defined %MSBUILD% (
 	echo 	Architecture:  %ARCHITECTURE%
 	echo 	VSWhere Path:  %VSWHERE%
 	echo 	MSBuild Path:  %MSBUILD%
+	echo	Extra Options: %TUNDRAEXTRAOPTS%
 	echo.
 	echo.
 
