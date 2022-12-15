@@ -28,8 +28,11 @@ if "%2" == "x64" (
     goto ERR_INVALID_BUILD_ARCHITECTURE
 )
 
+rem Add extra options to pass to Tundra.
+set "TUNDRAEXTRAOPTS=%3"
+
 rem Compile the project with the chosen configuration.
-call compile.cmd %CONFIGURATION% %ARCHITECTURE%
+call compile.cmd %CONFIGURATION% %ARCHITECTURE% %TUNDRAEXTRAOPTS%
 
 rem Don't try to create the folder if it already exists.
 if not exist "%CONFIGURATION%\%ARCHITECTURE%" (
