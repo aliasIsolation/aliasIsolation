@@ -1,0 +1,65 @@
+name: release
+
+on:
+  push:
+    tags:
+      - v*
+
+env:
+  # Configuration type and architecture to build.
+  # You can convert this to a build matrix if you need coverage of multiple configuration types.
+  # https://docs.github.com/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
+  BUILD_CONFIGURATION: release
+  BUILD_ARCHITECTURE: x86
+  BUILD_EXTRA_OPTIONS: -U
+  BOOST_VERSION: 1.81.0
+  BOOST_SOURCE_DIRECTORY: boost_1_81_0
+  BOOST_SOURCE_LOCATION: src\external\boost
+
+jobs:
+  release:
+    name: Release
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository and submodules
+        uses: actions/checkout@v2
+        with:
+          submodules: true
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v1.1.3
+
+      - name: Download Boost
+        uses: carlosperate/download-file-action@v2.0.0
+        id: download-boost-source
+        with:
+          file-url: https://boostorg.jfrog.io/artifactory/main/release/${{env.BOOST_VERSION}}/source/${{env.BOOST_SOURCE_DIRECTORY}}.7z
+          location: C:\Temp
+          sha256: d7bc4e2a2aee374a8c24832cacfed1265680c1e824d09fab3e00f87508155353
+
+      - name: Extract the Boost source archive
+        working-directory: ${{env.GITHUB_WORKSPACE}}
+        run: 7z.exe x ${{steps.download-boost-source.outputs.file-path}} -osrc\external\boost
+
+      - name: Move the Boost source files to the location expected by Tundra
+        working-directory: ${{env.GITHUB_WORKSPACE}}
+        run: move src\external\boost\${{env.BOOST_SOURCE_DIRECTORY}}\* src\external\boost
+
+      - name: Remove unneeded Boost source directory
+        working-directory: ${{env.GITHUB_WORKSPACE}}
+        run: rmdir src\external\boost\${{env.BOOST_SOURCE_DIRECTORY}}
+
+      - name: Build Alias Isolation
+        working-directory: ${{env.GITHUB_WORKSPACE}}
+        run: ./release.cmd ${{env.BUILD_CONFIGURATION}} ${{env.BUILD_ARCHITECTURE}} ${{env.BUILD_EXTRA_OPTIONS}}
+
+      - name: Package built files
+        working-directory: ${{env.GITHUB_WORKSPACE}}
+        run: 7z.exe a AliasIsolation.7z ${{env.BUILD_CONFIGURATION}}\${{env.BUILD_ARCHITECTURE}}\*
+
+      - uses: marvinpinto/action-automatic-releases@v1.2.1
+        with:
+          repo_token: ${{secrets.GITHUB_TOKEN}}
+          prerelease: false
+          files: AliasIsolation.7z

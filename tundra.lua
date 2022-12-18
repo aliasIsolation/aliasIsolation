@@ -4,8 +4,6 @@ local common = {
 		CPPDEFS = { 
 			"WINVER=0x0601", -- We are only targeting Windows 7 and above.
 			"_WIN32_WINNT=0x0601", 
-			--"_CRT_SECURE_NO_WARNINGS",
-			--"_SILENCE_EXPERIMENTAL_FILESYSTEM_DEPRECATION_WARNING",
 			{ "_DEBUG"; Config = "*-*-debug-*" },
 			--{ "NDEBUG"; Config = "*-*-release" },
 		},
@@ -38,13 +36,13 @@ Build {
 			Name = "win64-msvc",
 			SupportedHosts = { "windows" },
 			Inherit = common,
-			Tools = { { "msvc-vs2019"; TargetArch = "x64" } },
+			Tools = { { "msvc-vs2022"; TargetArch = "x64" } },
 		},
 		Config {
 			Name = "win32-msvc",
 			DefaultOnHost = "windows",
 			Inherit = common,
-			Tools = { { "msvc-vs2019"; TargetArch = "x86" } }, 
+			Tools = { { "msvc-vs2022"; TargetArch = "x86" } }, 
 		},
 	},
 	IdeGenerationHints = {

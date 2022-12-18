@@ -17,3 +17,4 @@ src/external/nana/out
 release
 debug
 .vs
+.idea

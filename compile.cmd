@@ -43,7 +43,7 @@ if defined %MSBUILD% (
 	echo 	Architecture:  %ARCHITECTURE%
 	echo 	VSWhere Path:  %VSWHERE%
 	echo 	MSBuild Path:  %MSBUILD%
-	echo	Extra Options: %TUNDRAEXTRAOPTS%
+	echo 	Extra Options: %TUNDRAEXTRAOPTS%
 	echo.
 	echo.
 
@@ -59,12 +59,20 @@ if defined %MSBUILD% (
 	call .\build_boost.bat %CONFIGURATION% %ARCHITECTURE%
 	popd
 
+    rem This is a dirty hack, but I don't want to fork the DirectXTK and FX11 repos just to change
+    rem a VS build flag.
+    if "%CONFIGURATION%" == "debug" (
+        set "_CL_=/MTd"
+    ) else (
+        set "_CL_=/MT"
+    )
+
 	echo.
 	echo [Building DirectXTK...]
 	rem DirectXTK sets _WIN32_WINNT to 0x0A00 (Windows 10 minimum) in their Win10 solution, which may affect our compatability with Windows 7 users.
 	rem We use the Win7 version of the solution so we get a build that still supports Windows 7.
 	rem FX11 does not have this issue as they set _WIN32_WINNT to 0x0601 (Windows 7 minimum) like we do.
-	"%MSBUILD%" -nologo -m -target:DirectXTK_Desktop_2019 -property:Configuration=%CONFIGURATION%;Platform=%ARCHITECTURE% src/external/DirectXTK/DirectXTK_Desktop_2019_Win7.sln
+	"%MSBUILD%" -nologo -m -target:DirectXTK_Desktop_2022 -property:Configuration=%CONFIGURATION%;Platform=%ARCHITECTURE% src/external/DirectXTK/DirectXTK_Desktop_2022_Win7.sln
 
 	rem If we do not have an errorlevel of 0, then something went wrong during the DirectXTK build.
 	if not %ERRORLEVEL% == 0 (
@@ -77,9 +85,9 @@ if defined %MSBUILD% (
 	rem HACK! FX11 uses a different platform name for x86 from DirectXTK.
 	rem Force it to Win32 if we are told to use x86, otherwise continue with the passed platform name (as they use x64 across both DirectXTK and FX11's project files).
 	if "%ARCHITECTURE%" == "x86" (
-		"%MSBUILD%" -nologo -m -target:Effects11 -property:Configuration=%CONFIGURATION%;Platform=Win32 src/external/FX11/Effects11_2019_Win10.sln
+		"%MSBUILD%" -nologo -m -target:Effects11 -property:Configuration=%CONFIGURATION%;Platform=Win32 src/external/FX11/Effects11_2022_Win10.sln
 	) else (
-		"%MSBUILD%" -nologo -m -target:Effects11 -property:Configuration=%CONFIGURATION%;Platform=%ARCHITECTURE% src/external/FX11/Effects11_2019_Win10.sln
+		"%MSBUILD%" -nologo -m -target:Effects11 -property:Configuration=%CONFIGURATION%;Platform=%ARCHITECTURE% src/external/FX11/Effects11_2022_Win10.sln
 	)
 
 	rem If we do not have an errorlevel of 0, then something went wrong during the FX11 build.
@@ -96,9 +104,23 @@ if defined %MSBUILD% (
 		tools\tundra2\bin\tundra2.exe %TUNDRAEXTRAOPTS% win32-msvc-%CONFIGURATION%-default
 	)
 
-	rem If we do not have an errorlevel of 0, then something went wrong during the Tundra build.
+    rem If we do not have an errorlevel of 0, then something went wrong during the Tundra build.
 	if not %ERRORLEVEL% == 0 (
-		echo [Build failed] Alias Isolation failed to build.
+		echo [Build failed] Alias Isolation failed to build during the Tundra build stage.
+		exit %ERRORLEVEL%
+	)
+
+    rem This is a dirty, dirty hack. Microsoft's vcvars batch files don't seem to properly set up the Windows Kits paths, so we have to hard code this...
+	"C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x86\fxc.exe" /nologo /Tps_4_0 /EmainPS /O3 /Ges /Qstrip_reflect /Qstrip_debug /Fo "data/shaders/compiled/sharpen_ps.hlsl" "data/shaders/sharpen_ps.hlsl"
+	"C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x86\fxc.exe" /nologo /Tps_4_0 /EmainPS /O3 /Ges /Qstrip_reflect /Qstrip_debug /Fo "data/shaders/compiled/shadowLinearize_ps.hlsl" "data/shaders/shadowLinearize_ps.hlsl"
+	"C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x86\fxc.exe" /nologo /Tps_4_0 /EmainPS /O3 /Ges /Qstrip_reflect /Qstrip_debug /Fo "data/shaders/compiled/shadowDownsample_ps.hlsl" "data/shaders/shadowDownsample_ps.hlsl"
+	"C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x86\fxc.exe" /nologo /Tps_4_0 /EmainPS /O3 /Ges /Qstrip_reflect /Qstrip_debug /Fo "data/shaders/compiled/chromaticAberration_ps.hlsl" "data/shaders/chromaticAberration_ps.hlsl"
+	"C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x86\fxc.exe" /nologo /Tps_4_0 /EmainPS /O3 /Ges /Qstrip_reflect /Qstrip_debug /Fo "data/shaders/compiled/bloomMerge_ps.hlsl" "data/shaders/bloomMerge_ps.hlsl"
+	"C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x86\fxc.exe" /nologo /Tvs_4_0 /EmainVS /O3 /Ges /Qstrip_reflect /Qstrip_debug /Fo "data/shaders/compiled/mainPost_vs.hlsl" "data/shaders/mainPost_vs.hlsl"
+
+	rem If we do not have an errorlevel of 0, then something went wrong during the shader compilation.
+	if not %ERRORLEVEL% == 0 (
+		echo [Build failed] Failed to compile the shaders for Alias Isolation.
 		exit %ERRORLEVEL%
 	)
 

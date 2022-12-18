@@ -22,7 +22,7 @@ HWND                    g_hWindow = nullptr;
 WNDPROC                 g_originalWndProcHandler = nullptr;
 
 bool g_menuInitialised = false;
-bool g_showDemoWindow = false;
+//bool g_showDemoWindow = false;
 bool g_showMenu = false;
 
 // Constructor for the Menu class.
@@ -116,7 +116,7 @@ void Menu::DrawMenu() {
 
     // If the user wants to display the menu, then render it.
     if (g_showMenu) {
-        g_showDemoWindow = true;
+        //g_showDemoWindow = true;
 
         static bool aliasIsolation_menu_showAboutWindow = false;
         static float aliasIsolation_mod_sharpeningAmount = g_settings.sharpening;
@@ -126,7 +126,7 @@ void Menu::DrawMenu() {
         
         if (aliasIsolation_menu_showAboutWindow) {
             if (ImGui::Begin("Alias Isolation - About", &aliasIsolation_menu_showAboutWindow, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings)) {
-                ImGui::TextColored(ImVec4(255, 170, 0, 1), "Alias Isolation 1.1.1 (Beta) - Built on %s at %s", __DATE__, __TIME__);
+                ImGui::TextColored(ImVec4(255, 170, 0, 1), "Alias Isolation 1.1.2 - Built on %s at %s", __DATE__, __TIME__);
                 ImGui::Text("Dear ImGui %s", ImGui::GetVersion());
                 ImGui::Separator();
                 ImGui::Text("Build information:");
@@ -175,7 +175,7 @@ void Menu::DrawMenu() {
                 ImGui::EndMenuBar();
             }
 
-            ImGui::TextColored(ImVec4(255, 170, 0, 1), "Alias Isolation 1.1.0 (Beta)");
+            ImGui::TextColored(ImVec4(255, 170, 0, 1), "Alias Isolation 1.1.2");
 
             ImGui::Separator();
 
@@ -200,6 +200,7 @@ void Menu::ShutdownMenu() {
     ImGui_ImplDX11_Shutdown();
     ImGui_ImplWin32_Shutdown();
     ImGui::DestroyContext();
+    g_menuInitialised = false;
 }
 
 // Code taken (and changed a little) from Niemand's wonderful article on hooking DX11 and using ImGUI.

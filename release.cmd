@@ -41,25 +41,36 @@ if not exist "%CONFIGURATION%\%ARCHITECTURE%" (
 
 set "DESTINATION=%CONFIGURATION%\%ARCHITECTURE%"
 
+if not exist "data\shaders\compiled\mainPost_vs.hlsl" (
+    goto ERR_SHADER_COMPILATION_FAILED
+)
+
 echo.
 echo [Copying build products...]
-xcopy /Y t2-output\%TUNDRATARGET%\aliasIsolation.dll %DESTINATION%
-xcopy /Y t2-output\%TUNDRATARGET%\aliasIsolation.pdb %DESTINATION%
-xcopy /Y t2-output\%TUNDRATARGET%\cinematicTools.dll %DESTINATION%
-xcopy /Y t2-output\%TUNDRATARGET%\cinematicTools.pdb %DESTINATION%
+copy /y /b t2-output\%TUNDRATARGET%\aliasIsolation.dll %DESTINATION%\aliasIsolation.asi
+copy /y /b t2-output\%TUNDRATARGET%\aliasIsolation.pdb %DESTINATION%
+copy /y /b t2-output\%TUNDRATARGET%\cinematicTools.dll %DESTINATION%
+copy /y /b t2-output\%TUNDRATARGET%\cinematicTools.pdb %DESTINATION%
 
 rem Don't try to create the data folder if it already exists.
 if not exist "%DESTINATION%\data" (
     mkdir %DESTINATION%\data
 )
+if not exist "%DESTINATION%\data\textures" (
+    mkdir %DESTINATION%\data\textures
+)
+if not exist "%DESTINATION%\data\shaders" (
+    mkdir %DESTINATION%\data\shaders
+)
 
 echo.
 echo [Copying data files...]
-xcopy /Y /S /E data %DESTINATION%\data
+xcopy /Y /S /E data\shaders\compiled %DESTINATION%\data\shaders
+xcopy /Y /S /E data\textures %DESTINATION%\data\textures
 
 echo.
 echo [Copying README file...]
-xcopy /Y README.txt %DESTINATION%
+copy /a /y README.txt %DESTINATION%
 
 goto END
 
@@ -73,6 +84,11 @@ exit 1
 rem Alert the user that the architecture they requested is not supported.
 echo [Build failed] Target architecture "%2" is not supported.
 echo Only architectures "x86" and "x64" are currently supported.
+exit 1
+
+:ERR_SHADER_COMPILATION_FAILED
+rem Alert the user that the shaders failed to compile.
+echo [Build failed] Shader compilation failed, could not locate compiled shader files.
 exit 1
 
 :END

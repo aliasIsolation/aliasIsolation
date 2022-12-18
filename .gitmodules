@@ -1,0 +1,21 @@
+[submodule "imgui"]
+	path = src/external/imgui
+	url = https://github.com/ocornut/imgui.git
+[submodule "src/external/DirectXTK"]
+	path = src/external/DirectXTK
+	url = https://github.com/microsoft/DirectXTK.git
+[submodule "src/external/FX11"]
+	path = src/external/FX11
+	url = https://github.com/microsoft/FX11.git
+[submodule "src/external/FW1FontWrapper"]
+	path = src/external/FW1FontWrapper
+	url = https://github.com/gamelaster/FW1FontWrapper.git
+[submodule "src/external/glm"]
+	path = src/external/glm
+	url = https://github.com/g-truc/glm.git
+[submodule "src/external/minhook"]
+	path = src/external/minhook
+	url = https://github.com/TsudaKageyu/minhook.git
+[submodule "src/external/stb"]
+	path = src/external/stb
+	url = https://github.com/nothings/stb.git
