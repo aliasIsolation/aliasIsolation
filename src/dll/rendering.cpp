@@ -223,10 +223,6 @@ HRESULT WINAPI ResizeBuffers_hook(
 
 	releaseResourceViews();
 
-    // Reinitialise the menu with the new buffer information.
-    Menu::ShutdownMenu();
-    Menu::InitMenu(swapChain);
-
 	return g_d3dHookOrig.ResizeBuffers(swapChain, BufferCount, Width, Height, NewFormat, SwapChainFlags);
 }
 
