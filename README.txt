@@ -39,11 +39,15 @@ To disable the mod at runtime, hit "Ctrl+Delete". To re-enable it, hit "Ctrl+Ins
 Known issues
 ------------
 
-* No support for the unofficial Rift mode.
+* No support for the unofficial Rift mode (could change in the future).
 * RenderDoc, Epic Games Overlay, or any other software which also uses API hooking may break the rendering.
 * SLI/CrossFire performance will probably be badly impacted, and depending on what the driver does, might also suffer from glitchy rendering.
 * Some special effects can appear thinner or exhibit ghosting. Sparks are known to be eroded.
-
+* While the motion tracker is in use, the Depth of Field shader seems to cause the tracker's LED highlights to appear, along the top of the screen.
+* (Under investigation) The Epic Games Store release of the game crashes with a fatal error at "aliasIsolation_hookableOverlayRender".
+* You are unable to move the mouse in the Alias Isolation UI while the game is unpaused. You can use the arrow keys to change settings in the menu, or pause the game which will unfreeze the mouse and allow you to adjust the settings.
+* (In development) No support for the integrated Cinematic Tools.
+* Some UI backgrounds become red in colour, which appears to be an issue with the original shaders.
 
 Building from source
 --------------------
