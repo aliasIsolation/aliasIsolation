@@ -9,18 +9,18 @@ This fork aims to maintain the mod, resolve existing issues, add new functionali
 
 Suggestions for new features or pull requests for this mod are welcome!
 
+Installation instructions
+-------------------------
 
-Usage
------
+Download the latest d3d11 x86 release of Ultimate ASI Loader from here:
+https://github.com/ThirteenAG/Ultimate-ASI-Loader/releases/download/Win32-latest/d3d11.zip
 
-Save the mod files in a non-system directory. It could be "Program Files", or "My Documents", or anything else as long as no special permissions are required to access that directory. If you're using a pre-packaged release, please unzip it rather than launching the mod from within the zip.
+Extract the following files from the AliasIsolation.7z archive, obtainable via the releases page, to the folder where Alien: Isolation is installed (you should be in a folder that has a file called AI.exe):
+1. Extract the mods folder to your Alien: Isolation folder.
+2. Extract aliasIsolation.asi and copy d3d11.dll to your Alien: Isolation folder.
 
-Run "aliasIsolationInjectorGui.exe", and follow the displayed instructions. Once you press the "Launch Alien: Isolation" button, the mod launches Alien: Isolation and hooks into it. Exiting the app will remove the mod from the Alien. If the game is a Steam copy, first exit Steam before running the injector. If Steam is running before the injector is launched, it will not work. The mod will inject itself into Steam as well, and then launch the game.
-
-Injection into Steam is necessary, as it is actually the Steam.exe process which launches the game. Even if AI.exe is started directly, it communicates with Steam, and then exits immediately, allowing Steam to launch it. In order to hook into the game, Alias Isolation hooks into Steam, and intercepts its CreateProcessW call, subsequently injecting itself into the child process. The only binaries that are injected into are Steam.exe and AI.exe.
-
-In order to remove the hook from Steam, run "detachAll.cmd".
-
+If you're using Linux and want to play the game via Proton, you'll need to perform an extra step:
+* Add this launch option to the game, in Steam: WINEDLLOVERRIDES="d3d11=n,b"
 
 Video settings
 --------------
@@ -40,8 +40,7 @@ Known issues
 ------------
 
 * No support for the unofficial Rift mode.
-* Crashes when used with recent versions of ReShade.
-* RenderDoc, or any other software which also uses API hooking may break the rendering.
+* RenderDoc, Epic Games Overlay, or any other software which also uses API hooking may break the rendering.
 * SLI/CrossFire performance will probably be badly impacted, and depending on what the driver does, might also suffer from glitchy rendering.
 * Some special effects can appear thinner or exhibit ghosting. Sparks are known to be eroded.
 
