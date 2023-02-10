@@ -1,1 +1,0 @@
-Taken from http://www.unknowncheats.me/forum/direct3d/98728-d3d11-rendering-class.html. Thanks for the great work, s0beit and NeoIII.
