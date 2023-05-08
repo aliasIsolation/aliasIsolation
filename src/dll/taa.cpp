@@ -337,9 +337,13 @@ HRESULT WINAPI Unmap_hook(
 						g_defaultXSC_cache.SecondaryViewProj	= xsc->SecondaryViewProj;
 					}
 
-                    glm::mat4 jitterAdd;
-                    jitterAdd[0][3] = sampleOffset.x;
-                    jitterAdd[1][3] = sampleOffset.y;
+					glm::mat4 jitterAdd;
+					jitterAdd[0][3] = sampleOffset.x;
+					jitterAdd[1][3] = sampleOffset.y;
+					jitterAdd[0][3] = sampleOffset.x;
+					jitterAdd[1][3] = sampleOffset.y;
+					jitterAdd[0][3] = sampleOffset.x;
+					jitterAdd[1][3] = sampleOffset.y;
 
                     xsc->SecondaryProj = g_defaultXSC_cache.SecondaryProj * jitterAdd;
                     xsc->ViewProj = g_defaultXSC_cache.ViewProj * jitterAdd;

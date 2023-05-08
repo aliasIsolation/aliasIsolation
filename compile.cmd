@@ -111,12 +111,12 @@ if defined %MSBUILD% (
 	)
 
     rem This is a dirty, dirty hack. Microsoft's vcvars batch files don't seem to properly set up the Windows Kits paths, so we have to hard code this...
-	"C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x86\fxc.exe" /nologo /Tps_4_0 /EmainPS /O3 /Ges /Qstrip_reflect /Qstrip_debug /Fo "data/shaders/compiled/sharpen_ps.hlsl" "data/shaders/sharpen_ps.hlsl"
-	"C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x86\fxc.exe" /nologo /Tps_4_0 /EmainPS /O3 /Ges /Qstrip_reflect /Qstrip_debug /Fo "data/shaders/compiled/shadowLinearize_ps.hlsl" "data/shaders/shadowLinearize_ps.hlsl"
-	"C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x86\fxc.exe" /nologo /Tps_4_0 /EmainPS /O3 /Ges /Qstrip_reflect /Qstrip_debug /Fo "data/shaders/compiled/shadowDownsample_ps.hlsl" "data/shaders/shadowDownsample_ps.hlsl"
-	"C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x86\fxc.exe" /nologo /Tps_4_0 /EmainPS /O3 /Ges /Qstrip_reflect /Qstrip_debug /Fo "data/shaders/compiled/chromaticAberration_ps.hlsl" "data/shaders/chromaticAberration_ps.hlsl"
-	"C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x86\fxc.exe" /nologo /Tps_4_0 /EmainPS /O3 /Ges /Qstrip_reflect /Qstrip_debug /Fo "data/shaders/compiled/bloomMerge_ps.hlsl" "data/shaders/bloomMerge_ps.hlsl"
-	"C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x86\fxc.exe" /nologo /Tvs_4_0 /EmainVS /O3 /Ges /Qstrip_reflect /Qstrip_debug /Fo "data/shaders/compiled/mainPost_vs.hlsl" "data/shaders/mainPost_vs.hlsl"
+	"C:\Program Files (x86)\Windows Kits\10\bin\10.0.20348.0\x86\fxc.exe" /nologo /Tps_4_0 /EmainPS /O3 /Ges /Qstrip_reflect /Qstrip_debug /Fo "data/shaders/compiled/sharpen_ps.hlsl" "data/shaders/sharpen_ps.hlsl"
+	"C:\Program Files (x86)\Windows Kits\10\bin\10.0.20348.0\x86\fxc.exe" /nologo /Tps_4_0 /EmainPS /O3 /Ges /Qstrip_reflect /Qstrip_debug /Fo "data/shaders/compiled/shadowLinearize_ps.hlsl" "data/shaders/shadowLinearize_ps.hlsl"
+	"C:\Program Files (x86)\Windows Kits\10\bin\10.0.20348.0\x86\fxc.exe" /nologo /Tps_4_0 /EmainPS /O3 /Ges /Qstrip_reflect /Qstrip_debug /Fo "data/shaders/compiled/shadowDownsample_ps.hlsl" "data/shaders/shadowDownsample_ps.hlsl"
+	"C:\Program Files (x86)\Windows Kits\10\bin\10.0.20348.0\x86\fxc.exe" /nologo /Tps_4_0 /EmainPS /O3 /Ges /Qstrip_reflect /Qstrip_debug /Fo "data/shaders/compiled/chromaticAberration_ps.hlsl" "data/shaders/chromaticAberration_ps.hlsl"
+	"C:\Program Files (x86)\Windows Kits\10\bin\10.0.20348.0\x86\fxc.exe" /nologo /Tps_4_0 /EmainPS /O3 /Ges /Qstrip_reflect /Qstrip_debug /Fo "data/shaders/compiled/bloomMerge_ps.hlsl" "data/shaders/bloomMerge_ps.hlsl"
+	"C:\Program Files (x86)\Windows Kits\10\bin\10.0.20348.0\x86\fxc.exe" /nologo /Tvs_4_0 /EmainVS /O3 /Ges /Qstrip_reflect /Qstrip_debug /Fo "data/shaders/compiled/mainPost_vs.hlsl" "data/shaders/mainPost_vs.hlsl"
 
 	rem If we do not have an errorlevel of 0, then something went wrong during the shader compilation.
 	if not %ERRORLEVEL% == 0 (

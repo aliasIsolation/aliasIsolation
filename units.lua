@@ -116,4 +116,4 @@ local cinematicTools = SharedLibrary {
 }
 
 Default(dll)
-Default(cinematicTools)
+--Default(cinematicTools)

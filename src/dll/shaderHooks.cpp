@@ -93,13 +93,14 @@ HRESULT WINAPI CreatePixelShader_hook(void* thisptr, const char* bytecode, SIZE_
 				return res;
 			}
 
-			// RGBM encode pixel shader
+			// DoF encode pixel shader
 			if (hash[0] == 0x29ed6504 && hash[1] == 0x77d5438c && hash[2] == 0xe9c206c8 && hash[3] == 0xb1f27ba2)
 			{
 				g_alienResources.dofEncodePs = *pixelShader;
 				return res;
 			}
 
+            // Camera motion pixel shader
 			if (hash[0] == 0x1fb3edd4 && hash[1] == 0xe984323b && hash[2] == 0x11bcf154 && hash[3] == 0x5a029c94)
 			{
 				g_alienResources.cameraMotionPs = *pixelShader;
