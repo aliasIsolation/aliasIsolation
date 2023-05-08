@@ -9,7 +9,7 @@ class Menu
 public:
 	Menu();
 	~Menu();
-	static LRESULT CALLBACK Menu::WndProcHandler(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+	static LRESULT CALLBACK WndProcHandler(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 	static void InitMenu(IDXGISwapChain* pSwapChain);
 	static void DrawMenu();
 	static void ShutdownMenu();

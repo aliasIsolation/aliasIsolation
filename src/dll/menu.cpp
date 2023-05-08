@@ -45,8 +45,8 @@ LRESULT CALLBACK Menu::WndProcHandler(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
     POINT cursorPos;
     GetCursorPos(&cursorPos);
     ScreenToClient(g_hWindow, &cursorPos);
-    ImGui::GetIO().MousePos.x = cursorPos.x;
-    ImGui::GetIO().MousePos.y = cursorPos.y;
+    io.MousePos.x = cursorPos.x;
+    io.MousePos.y = cursorPos.y;
 
     if (uMsg == WM_KEYUP) {
         if (wParam == VK_DELETE) {
@@ -91,7 +91,6 @@ void Menu::DrawMenu() {
 
         ImGui_ImplWin32_Init(g_hWindow);
         ImGui_ImplDX11_Init(g_device, g_context);
-        ImGui::GetIO().ImeWindowHandle = g_hWindow;
 
         ID3D11Texture2D* pBackBuffer = nullptr;
         DX_CHECK(g_swapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), reinterpret_cast<LPVOID*>(&pBackBuffer)));
@@ -161,7 +160,7 @@ void Menu::DrawMenu() {
         ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
 
         {
-            ImGui::Begin("Alias Isolation - Settings", false, ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings);
+            ImGui::Begin("Alias Isolation - Settings", NULL, ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings);
 
             if (ImGui::BeginMenuBar()) {
                 if (ImGui::BeginMenu("Help")) {
@@ -181,6 +180,10 @@ void Menu::DrawMenu() {
 
             ImGui::SliderFloat("Sharpening Amount", &g_settings.sharpening, 0.0f, 1.0f, "%f");
             ImGui::SliderFloat("Chromatic Aberration Amount", &g_settings.chromaticAberration, 0.0f, 1.0f, "%f");
+
+            if (ImGui::Button("Save Settings")) {
+              saveSettings(g_settings);
+            }
 
             ImGui::End();
         }
