@@ -110,8 +110,9 @@ namespace ShaderRegistry
 		for (int retry = 0; retry < 100; ++retry, Sleep(10)) {
 			sourceBlob.clear();
 
-			FILE* f = fopen(reloadInfo->path.c_str(), "rb");
-			if (!f) {
+            FILE* f;
+			errno_t err = fopen_s(&f, reloadInfo->path.c_str(), "rb");
+			if (err != 0) {
 				continue;
 			}
 
@@ -120,7 +121,7 @@ namespace ShaderRegistry
 			fseek(f, 0, SEEK_SET);
 
 			sourceBlob.resize(fileSize);
-			const long rb = fread(sourceBlob.data(), 1, fileSize, f);
+			const long rb = fread_s(sourceBlob.data(), sourceBlob.size(), 1, fileSize, f);
 
 			fclose(f);
 			if (rb == fileSize) {
@@ -234,6 +235,7 @@ namespace ShaderRegistry
 
 	void reloadIfModified(ShaderReloadInfo *const reloadInfo, CompiledShader *const shader) {
 		WIN32_FILE_ATTRIBUTE_DATA stat;
+        ZeroMemory(&stat, sizeof(stat));
 		if (GetFileAttributesExA(reloadInfo->path.c_str(), GetFileExInfoStandard, &stat)) {
 			if (stat.ftLastWriteTime.dwHighDateTime != reloadInfo->lastModified.dwHighDateTime ||
 				stat.ftLastWriteTime.dwLowDateTime  != reloadInfo->lastModified.dwLowDateTime)

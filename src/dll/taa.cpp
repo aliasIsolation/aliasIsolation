@@ -27,7 +27,7 @@ void renderTaa(ID3D11DeviceContext *const context, ID3D11ShaderResourceView* mai
 	static ID3D11Texture2D*		accumTex[2];
 	static ID3D11SamplerState*	pointSampler;
 	static ID3D11SamplerState*	linearSampler;
-	static ID3D11Buffer*		cb;
+	static ID3D11Buffer*		cb = NULL;
 	static ShaderHandle			taaCsHandle;
 
 	static bool			resourcesCreated = false;
@@ -39,6 +39,7 @@ void renderTaa(ID3D11DeviceContext *const context, ID3D11ShaderResourceView* mai
 		float		invScreenWidth;
 		float		invScreenHeight;
 	} constants;
+    ZeroMemory(&constants, sizeof(constants));
 
 	const uint screenWidth = g_frameConstants.screenWidth;
 	const uint screenHeight = g_frameConstants.screenHeight;
@@ -90,6 +91,7 @@ void renderTaa(ID3D11DeviceContext *const context, ID3D11ShaderResourceView* mai
 		{
 			// Fill in a buffer description.
 			D3D11_BUFFER_DESC cbDesc;
+            ZeroMemory(&cbDesc, sizeof(cbDesc));
 			cbDesc.ByteWidth = sizeof(constants);
 			cbDesc.Usage = D3D11_USAGE_DYNAMIC;
 			cbDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
@@ -107,13 +109,18 @@ void renderTaa(ID3D11DeviceContext *const context, ID3D11ShaderResourceView* mai
 	// Update constants
 	{
 		D3D11_MAPPED_SUBRESOURCE res;
-		res.pData = 0;
+        ZeroMemory(&res, sizeof(res));
 
-		context->Map(cb, 0, D3D11_MAP_WRITE_DISCARD, 0, &res);
-		if (res.pData) {
-			memcpy(res.pData, &constants, sizeof(constants));
-		}
-		context->Unmap(cb, 0);
+        if (!cb || cb == NULL) {
+          NULL_FAILED(cb);
+        }
+        else {
+          DX_CHECK(context->Map(cb, 0, D3D11_MAP_WRITE_DISCARD, 0, &res));
+          if (res.pData) {
+            memcpy(res.pData, &constants, sizeof(constants));
+          }
+          context->Unmap(cb, 0);
+        }
 	}
 
 	CComPtr<ID3D11ShaderResourceView> resources[] = {
@@ -160,6 +167,7 @@ void insertRendering(ID3D11DeviceContext *const context, const std::function<voi
 
 bool taaOnDraw(ID3D11DeviceContext* context, ID3D11VertexShader* currentVs, ID3D11PixelShader* currentPs)
 {
+#ifndef ALIASISOLATION_NO_TAA_PASS
 	// Run TAA before the DoF encode if it's present in the frame; otherwise run it before the RGBM encode
 	bool shouldRunTaa =
 		g_alienResources.dofEncodePs == currentPs
@@ -177,7 +185,7 @@ bool taaOnDraw(ID3D11DeviceContext* context, ID3D11VertexShader* currentVs, ID3D
 			if (mainTexDesc.Format == DXGI_FORMAT_R11G11B10_FLOAT && !!(mainTexDesc.BindFlags & D3D11_BIND_RENDER_TARGET)) {
 				g_alienResources.mainTexView = mainTexView;
 
-				ProfileBlock profile("taa");
+				ProfileBlock profile("Temporal Anti-aliasing");
 
 				insertRendering(context, [&](ID3D11DeviceContext* dev) {
 					renderTaa(dev, mainTexView);
@@ -190,6 +198,7 @@ bool taaOnDraw(ID3D11DeviceContext* context, ID3D11VertexShader* currentVs, ID3D
 			return true;
 		}
 	}
+#endif
 
 	return false;
 }
@@ -241,9 +250,9 @@ glm::vec2 getFrameJitter() {
 // Cache of jittered projection matrices calculated for the shared pixel and vertex constant buffers.
 // The math to calculate them is quite expensive, so we cache them and only update when needed.
 struct {
-	glm::dmat4 SecondaryProj;
-	glm::dmat4 ViewProj;
-	glm::dmat4 SecondaryViewProj;
+	glm::mat4 SecondaryProj;
+	glm::mat4 ViewProj;
+	glm::mat4 SecondaryViewProj;
 } g_defaultXSC_cache;
 uint taaSampleIdxForXSC_cache = -1;
 
@@ -263,6 +272,7 @@ HRESULT WINAPI Unmap_hook(
 
 	ID3D11Texture2D *const rtTex = (ID3D11Texture2D*)rtRes.p;
 	D3D11_TEXTURE2D_DESC rtTexDesc;
+    ZeroMemory(&rtTexDesc, sizeof(D3D11_TEXTURE2D_DESC));
 
 	if (rtTex) rtTex->GetDesc(&rtTexDesc);
 
@@ -273,17 +283,18 @@ HRESULT WINAPI Unmap_hook(
 	CComPtr<ID3D11BlendState> blendState = nullptr;
 	context->OMGetBlendState(&blendState, nullptr, nullptr);
 
-	D3D11_BLEND_DESC blendDesc;
+    D3D11_BLEND_DESC blendDesc;
+    ZeroMemory(&blendDesc, sizeof(D3D11_BLEND_DESC));
 	if (blendState) {
 		blendState->GetDesc(&blendDesc);
 	}
 
-	const bool isAdditiveBlend =
+	/*const bool isAdditiveBlend =
 		blendState &&
 		blendDesc.RenderTarget[0].BlendEnable &&
 		blendDesc.RenderTarget[0].BlendOp == D3D11_BLEND_OP_ADD &&
 		blendDesc.RenderTarget[0].SrcBlend == D3D11_BLEND_ONE &&
-		blendDesc.RenderTarget[0].DestBlend == D3D11_BLEND_ONE;
+		blendDesc.RenderTarget[0].DestBlend == D3D11_BLEND_ONE;*/
 
 	const uint screenWidth = g_frameConstants.screenWidth;
 	const uint screenHeight = g_frameConstants.screenHeight;
@@ -291,8 +302,9 @@ HRESULT WINAPI Unmap_hook(
 	// Only want TAA jitter in full-screen render passes
 	if (rtTex && rtTexDesc.Width == screenWidth && rtTexDesc.Height == screenHeight && viewport.Width == (float)screenWidth && viewport.Height == (float)screenHeight)
 	{
+#ifndef ALIASISOLATION_NO_SMAA_JITTER_ADD
 		if (g_alienResources.cbDefaultXSC == pResource && g_alienResources.mappedCbDefaultXSC) {
-			glm::vec2 sampleOffset = getFrameJitter();
+			const glm::vec2 sampleOffset = getFrameJitter();
 
 			CbDefaultXSC *const xsc = g_alienResources.mappedCbDefaultXSC;
 
@@ -306,12 +318,10 @@ HRESULT WINAPI Unmap_hook(
 				// with one reconstructed from the view matrix. They will only match for main viewport rendering,
 				// as "CameraPosition" is not updated for shadow views.
 
-				bool matchingPass = true;
-
-				glm::vec3 viewCameraPos = glm::dmat3(xsc->ViewMatrix) * glm::dvec3(-xsc->ViewMatrix[0][3], -xsc->ViewMatrix[1][3], -xsc->ViewMatrix[2][3]);
+				const glm::vec3 viewCameraPos = glm::mat3(xsc->ViewMatrix) * glm::vec3(-xsc->ViewMatrix[0][3], -xsc->ViewMatrix[1][3], -xsc->ViewMatrix[2][3]);
 
 				// Standard views have the CameraPosition matching the view matrix
-				if (length(viewCameraPos - glm::vec3(xsc->CameraPosition)) < 0.01f) {
+				if (glm::length(viewCameraPos - glm::vec3(xsc->CameraPosition)) < 0.01f) {
 
 					// Only re-calculate the matrices if ViewProj changed. Otherwise we use the ones from g_defaultXSC_cache.
 					if (g_disableXSC_cache || g_frameConstants.currViewProjNoJitter != xsc->ViewProj || g_frameConstants.taaSampleIdx != taaSampleIdxForXSC_cache)
@@ -320,35 +330,27 @@ HRESULT WINAPI Unmap_hook(
 
 						g_frameConstants.currViewMatrix = xsc->ViewMatrix;
 						g_frameConstants.currViewProjNoJitter = xsc->ViewProj;
-						g_frameConstants.currInvViewProjNoJitter = glm::inverse(glm::dmat4(g_frameConstants.currViewProjNoJitter));
-
-						glm::mat4 jitterAdd;
-						jitterAdd[0][3] = sampleOffset.x;
-						jitterAdd[1][3] = sampleOffset.y;
+                        g_frameConstants.currInvViewProjNoJitter = glm::inverse(glm::dmat4(g_frameConstants.currViewProjNoJitter));
 
 						g_defaultXSC_cache.SecondaryProj		= xsc->SecondaryProj;
 						g_defaultXSC_cache.ViewProj				= xsc->ViewProj;
 						g_defaultXSC_cache.SecondaryViewProj	= xsc->SecondaryViewProj;
 					}
-				} else {
-					matchingPass = false;
-				}
 
-				if (matchingPass)
-				{
-					glm::mat4 jitterAdd;
-					jitterAdd[0][3] = sampleOffset.x;
-					jitterAdd[1][3] = sampleOffset.y;
+                    glm::mat4 jitterAdd;
+                    jitterAdd[0][3] = sampleOffset.x;
+                    jitterAdd[1][3] = sampleOffset.y;
 
-					xsc->SecondaryProj		= glm::mat4(glm::dmat4(g_defaultXSC_cache.SecondaryProj) * glm::dmat4(jitterAdd));
-					xsc->ViewProj			= glm::mat4(glm::dmat4(g_defaultXSC_cache.ViewProj) * glm::dmat4(jitterAdd));
-					xsc->SecondaryViewProj	= glm::mat4(glm::dmat4(g_defaultXSC_cache.SecondaryViewProj) * glm::dmat4(jitterAdd));
+                    xsc->SecondaryProj = g_defaultXSC_cache.SecondaryProj * jitterAdd;
+                    xsc->ViewProj = g_defaultXSC_cache.ViewProj * jitterAdd;
+                    xsc->SecondaryViewProj = g_defaultXSC_cache.SecondaryViewProj * jitterAdd;
 				}
 			}
 
 			g_alienResources.mappedCbDefaultXSC = nullptr;
 		}
-
+#endif
+#ifndef ALIASISOLATION_NO_JITTER_ADD
 		if (g_alienResources.cbDefaultVSC == pResource && g_alienResources.mappedCbDefaultVSC) {
 			const glm::vec2 sampleOffset = getFrameJitter();
 
@@ -360,33 +362,37 @@ HRESULT WINAPI Unmap_hook(
 				jitterAdd[0][3] = sampleOffset.x;
 				jitterAdd[1][3] = sampleOffset.y;
 
-				vsc->ProjMatrix			= glm::mat4(glm::dmat4(vsc->ProjMatrix) * glm::dmat4(jitterAdd));
-				vsc->PrevViewProj		= glm::mat4(glm::dmat4(vsc->PrevViewProj) * glm::dmat4(jitterAdd));
-				vsc->PrevSecViewProj	= glm::mat4(glm::dmat4(vsc->PrevSecViewProj) * glm::dmat4(jitterAdd));
+                vsc->ProjMatrix			= vsc->ProjMatrix * jitterAdd;
+				vsc->PrevViewProj		= vsc->PrevViewProj * jitterAdd;
+				vsc->PrevSecViewProj	= vsc->PrevSecViewProj * jitterAdd;
 			}
 
 			g_alienResources.mappedCbDefaultVSC = nullptr;
 		}
-
+#endif
+#ifndef ALIASISOLATION_NO_JITTER_REMOVE
 		if (g_alienResources.cbDefaultPSC == pResource && g_alienResources.mappedCbDefaultPSC) {
 			CbDefaultPSC *const psc = g_alienResources.mappedCbDefaultPSC;
 
 			// Multiply the two matrices used in velocity vector calculation.
 			// We can do it on the CPU using doubles, whereas the GPU uses floats, and loses a lot of precision.
-			psc->MotionBlurCurrInvViewProjection = g_frameConstants.currInvViewProjNoJitter * glm::dmat4(g_frameConstants.prevViewProjNoJitter);
+			// Using single precision in the velocity calculation causes the screen to slightly shake.
+			// For this calculation we use double precision for higher accuracy.
+			psc->MotionBlurCurrInvViewProjection = glm::mat4(g_frameConstants.currInvViewProjNoJitter * glm::dmat4(g_frameConstants.prevViewProjNoJitter));
 			psc->MotionBlurPrevViewProjection = glm::mat4();
 
 			const glm::vec2 sampleOffset = getFrameJitter();
 
-			glm::dmat4 jitterRemove;
-			jitterRemove[0][3] = -1.0 * sampleOffset.x;
-			jitterRemove[1][3] = -1.0 * sampleOffset.y;
+			glm::mat4 jitterRemove;
+			jitterRemove[0][3] = -1.0f * sampleOffset.x;
+			jitterRemove[1][3] = -1.0f * sampleOffset.y;
 
-			glm::dmat4 shadowJitterRemove = glm::dmat4(g_frameConstants.currViewProjNoJitter) * jitterRemove * g_frameConstants.currInvViewProjNoJitter;
-			psc->Spotlight0_Transform = glm::mat4(shadowJitterRemove * glm::dmat4(psc->Spotlight0_Transform));
+			const glm::mat4 shadowJitterRemove = g_frameConstants.currViewProjNoJitter * jitterRemove * glm::mat4(g_frameConstants.currInvViewProjNoJitter);
+			psc->Spotlight0_Transform = shadowJitterRemove * psc->Spotlight0_Transform;
 
 			g_alienResources.mappedCbDefaultPSC = nullptr;
 		}
+#endif
 	}
 
 	return Unmap_orig(context, pResource, Subresource);

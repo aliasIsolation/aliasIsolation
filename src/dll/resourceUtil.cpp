@@ -20,7 +20,7 @@ void ErrorDescription(HRESULT hr)
 		hr = HRESULT_CODE(hr);
 	}
 
-	TCHAR* szErrMsg;
+    TCHAR* szErrMsg = nullptr;
 
 	if (FormatMessage(
 		FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM,

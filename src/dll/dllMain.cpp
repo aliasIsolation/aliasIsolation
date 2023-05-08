@@ -35,7 +35,7 @@ inline bool ends_with(std::wstring const & value, std::wstring const & ending)
     return std::equal(ending.rbegin(), ending.rend(), value.rbegin());
 }
 
-int __cdecl ovr_Initialize_hook(const void* params)
+int __cdecl ovr_Initialize_hook(const void* /*params*/)
 {
 	// Return an error
 	return 1;
@@ -43,11 +43,11 @@ int __cdecl ovr_Initialize_hook(const void* params)
 void* ovr_Initialize_handle = nullptr;
 
 // This will prevent the Oculus runtime from initializing. This mod doesn't support the unofficial OVR mode.
-// It would look completely broken, and might also give some trouble dependong on what the Oculus SDK does.
+// It would look completely broken, and might also give some trouble depending on what the Oculus SDK does.
 void disableOvr()
 {
 	HMODULE hModule = GetModuleHandleA("AI.exe");
-	void *const ovr_Initialize_handle = (LPVOID)GetProcAddress(hModule, "ovr_Initialize");
+    ovr_Initialize_handle = (LPVOID)GetProcAddress(hModule, "ovr_Initialize");
 	if (ovr_Initialize_handle)
 	{
 		void* orig;
@@ -55,14 +55,6 @@ void disableOvr()
 		MH_CHECK(MH_EnableHook(ovr_Initialize_handle));
 	}
 }
-
-/*
-TODO! Get Cinematic Tools working again.
-void loadCinematicTools()
-{
-	LoadLibraryA(g_dllParams.cinematicToolsDllPath);
-}
-*/
 
 char g_modulePath[_MAX_PATH];
 char CreateProcessW_hookBytesHead[8];
@@ -173,7 +165,7 @@ DWORD WINAPI terminationWatchThread(void*)
 	}
 }
 
-LPTOP_LEVEL_EXCEPTION_FILTER WINAPI SetUnhandledExceptionFilter_hook(LPTOP_LEVEL_EXCEPTION_FILTER lpTopLevelExceptionFilter)
+LPTOP_LEVEL_EXCEPTION_FILTER WINAPI SetUnhandledExceptionFilter_hook(LPTOP_LEVEL_EXCEPTION_FILTER /*lpTopLevelExceptionFilter*/)
 {
 	return nullptr;
 }
@@ -181,7 +173,7 @@ void* SetUnhandledExceptionFilter_orig = nullptr;
 
 BOOL APIENTRY DllMain( HMODULE hModule,
                        DWORD  ul_reason_for_call,
-                       LPVOID lpReserved
+                       LPVOID /*lpReserved*/
 					 )
 {
 	switch (ul_reason_for_call)
@@ -227,15 +219,6 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 		g_hModule = hModule;
 		CreateThread(NULL, NULL, &terminationWatchThread, NULL, NULL, NULL);
 		LOG_MSG("[aliasIsolation::dllMain] CreateThread(&terminationWatchThread)\n", "");
-
-		/*
-		TODO! Get Cinematic Tools working again.
-		if (g_dllParams.cinematicToolsEnable && GetModuleHandleA("AI.exe"))
-		{
-			loadCinematicTools();
-			LOG_MSG("[aliasIsolation::dllMain] loadCinematicTools()\n", "");
-		}
-		*/
 
 		break;
 	}

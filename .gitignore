@@ -18,3 +18,4 @@ release
 debug
 .vs
 .idea
+/vcpkg_installed

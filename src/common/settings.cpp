@@ -12,19 +12,22 @@ void setSettingsFilePath(const char* path)
 
 bool loadSettings(Settings* settingsOut)
 {
-	FILE* f = fopen(g_settingsFilePath.c_str(), "r");
-	if (!f) {
+	FILE* f;
+	errno_t err = fopen_s(&f, g_settingsFilePath.c_str(), "r");
+	if (err != 0) {
 		return false;
 	}
 
-	char buf[1024];
-	fgets(buf, sizeof(buf)-1, f);
-	int bufLen = strlen(buf);
-	if (bufLen > 1 && buf[bufLen-1] == '\n') buf[bufLen-1] = '\0';
-	settingsOut->aiExePath = buf;
+    int scanCount = fscanf_s(f, "sharpening = %f\n", &settingsOut->sharpening);
+    if (scanCount == 0 || scanCount == EOF) {
+      return false;
+    }
 
-	fscanf(f, "sharpening = %f\n", &settingsOut->sharpening);
-	fscanf(f, "chromaticAberration = %f\n", &settingsOut->chromaticAberration);
+	scanCount = fscanf_s(f, "chromaticAberration = %f\n", &settingsOut->chromaticAberration);
+    if (scanCount == 0 || scanCount == EOF) {
+      return false;
+    }
+
 	fclose(f);
 
 	return true;
@@ -34,14 +37,14 @@ void saveSettings(const Settings& settings)
 {
 	for (int retry = 0; retry < 10; ++retry, Sleep(10))
 	{
-		FILE* f = fopen(g_settingsFilePath.c_str(), "w");
-		if (!f) {
+		FILE* f;
+		errno_t err = fopen_s(&f, g_settingsFilePath.c_str(), "w");
+		if (err != 0) {
 			continue;
 		}
 
-		fprintf(f, "%s\n", settings.aiExePath.c_str(), f);
-		fprintf(f, "sharpening = %f\n", settings.sharpening);
-		fprintf(f, "chromaticAberration = %f\n", settings.chromaticAberration);
+		fprintf_s(f, "sharpening = %f\n", settings.sharpening);
+		fprintf_s(f, "chromaticAberration = %f\n", settings.chromaticAberration);
 		fclose(f);
 		break;
 	}

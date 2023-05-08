@@ -19,3 +19,6 @@
 [submodule "src/external/stb"]
 	path = src/external/stb
 	url = https://github.com/nothings/stb.git
+[submodule "src/cinematicTools"]
+	path = src/cinematicTools
+	url = https://github.com/Hattiwatti/CinematicTools.git

@@ -159,19 +159,23 @@ HRESULT WINAPI CreateVertexShader_hook(void* thisptr, const char* bytecode, SIZE
 				return res;
 			}
 
+#ifndef ALIASISOLATION_NO_SMAA_VS
 			// SMAA vertex shader
 			if (hash[0] == 0x021e3541 && hash[1] == 0xc8808c25 && hash[2] == 0x81beb6be && hash[3] == 0x342bfddd)
 			{
 				g_alienResources.smaaVertexShader = *vertexShader;
 				return res;
 			}
+#endif
 
+#ifndef ALIASISOLATION_NO_RGBM_VS
 			// RGBM encode vertex shader
 			if (hash[0] == 0xa851671d && hash[1] == 0xbe79cf68 && hash[2] == 0x2e6d9376 && hash[3] == 0x567ba13c)
 			{
 				g_alienResources.rgbmEncodeVs = *vertexShader;
 				return res;
 			}
+#endif
 		}
 	}
 

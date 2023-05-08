@@ -2,6 +2,7 @@
 #include "common.h"
 #include "settings.h"
 
+#include <filesystem>
 #include <imgui.h>
 #include <backends/imgui_impl_win32.h>
 #include <backends/imgui_impl_dx11.h>
@@ -24,6 +25,10 @@ WNDPROC                 g_originalWndProcHandler = nullptr;
 bool g_menuInitialised = false;
 //bool g_showDemoWindow = false;
 bool g_showMenu = false;
+#ifdef ALIASISOLATION_ENABLE_PROFILER
+std::string g_profilerStats = "";
+extern bool g_shaderHooksEnabled;
+#endif // ALIASISOLATION_ENABLE_PROFILER
 
 // Constructor for the Menu class.
 Menu::Menu() {
@@ -64,6 +69,14 @@ LRESULT CALLBACK Menu::WndProcHandler(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 
 void Menu::InitMenu(IDXGISwapChain* pSwapChain) {
     g_swapChain = pSwapChain;
+
+    // We were loading cinematic tools far too early, and it couldn't access the D3D swap chain in the engine.
+    // Now, we inject it only after knowing that the engine has at least created its device and swap chain.
+    if (std::filesystem::exists("cinematicTools.dll") && GetModuleHandleA("AI.exe"))
+    {
+      LoadLibraryA("cinematicTools.dll");
+      LOG_MSG("[aliasIsolation::dllMain] LoadLibraryA(\"cinematicTools.dll\")\n", "");
+    }
 }
 
 void Menu::DrawMenu() {
@@ -113,6 +126,47 @@ void Menu::DrawMenu() {
     ImGui_ImplDX11_NewFrame();
     ImGui_ImplWin32_NewFrame();
     ImGui::NewFrame();
+
+#ifdef ALIASISOLATION_ENABLE_PROFILER
+    {
+      ImGui::SetNextWindowSize(ImVec2(300, 300), ImGuiCond_FirstUseEver);
+      ImGui::Begin("Alias Isolation - Profiler", NULL, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoInputs);
+#ifdef ALIASISOLATION_NO_SMAA_JITTER_ADD
+      ImGui::TextColored(ImVec4(255, 0, 0, 1), "No SMAA jitter calc.");
+#endif
+#ifdef ALIASISOLATION_NO_JITTER_REMOVE
+      ImGui::TextColored(ImVec4(255, 0, 0, 1), "No jitter removal");
+#endif
+#ifdef ALIASISOLATION_NO_JITTER_ADD
+      ImGui::TextColored(ImVec4(255, 0, 0, 1), "No jitter calculation");
+#endif
+#ifdef ALIASISOLATION_NO_RGBM_VS
+      ImGui::TextColored(ImVec4(255, 0, 0, 1), "No RGBM vertex shader");
+#endif
+#ifdef ALIASISOLATION_NO_SMAA_VS
+      ImGui::TextColored(ImVec4(255, 0, 0, 1), "No SMAA vertex shader");
+#endif
+#ifdef ALIASISOLATION_NO_VS_OVERRIDES
+      ImGui::TextColored(ImVec4(255, 0, 0, 1), "No vertex shader overrides");
+#endif
+#ifdef ALIASISOLATION_NO_PS_OVERRIDES
+      ImGui::TextColored(ImVec4(255, 0, 0, 1), "No pixel shader overrides");
+#endif
+#ifdef ALIASISOLATION_NO_TAA_PASS
+      ImGui::TextColored(ImVec4(255, 0, 0, 1), "No TAA pass");
+#endif
+#ifdef ALIASISOLATION_NO_CA_PASS
+      ImGui::TextColored(ImVec4(255, 0, 0, 1), "No CA pass");
+#endif
+      if (!g_shaderHooksEnabled) {
+        ImGui::TextColored(ImVec4(255, 0, 0, 1), "Hooks disabled");
+      }
+      else {
+        ImGui::TextColored(ImVec4(255, 170, 0, 1), g_profilerStats.c_str());
+      }
+      ImGui::End();
+    }
+#endif // ALIASISOLATION_ENABLE_PROFILER
 
     // If the user wants to display the menu, then render it.
     if (g_showMenu) {

@@ -100,9 +100,9 @@ HRESULT WINAPI Draw_hook(
 	UINT VertexCount,
 	UINT StartVertexLocation
 ) {
-	HRESULT result;
+	HRESULT result = NO_ERROR;
 	auto origDrawFn = [&]() { result = g_d3dHookOrig.Draw(context, VertexCount, StartVertexLocation); };
-
+#if !defined(ALIASISOLATION_NO_TAA_PASS) && !defined(ALIASISOLATION_NO_CA_PASS)
 	CComPtr<ID3D11VertexShader> currentVs = nullptr;
 	CComPtr<ID3D11PixelShader>	currentPs = nullptr;
 	context->VSGetShader(&currentVs.p, nullptr, nullptr);
@@ -114,14 +114,16 @@ HRESULT WINAPI Draw_hook(
 		context->PSGetShaderResources(8, 1, &depthSrv);
 		g_alienResources.depthSrv = depthSrv;
 	}
-
+#endif
+#ifndef ALIASISOLATION_NO_TAA_PASS
 	taaOnDraw(context, currentVs, currentPs);
-
+#endif
+#ifndef ALIASISOLATION_NO_CA_PASS
 	if (caOnDraw(context, currentVs, currentPs, origDrawFn)) {
 		finishFrame();
 		return result;
 	}
-
+#endif
 	origDrawFn();
 	return result;
 }
@@ -137,14 +139,17 @@ void STDMETHODCALLTYPE PSSetShader_hook(
     UINT NumClassInstances)
 {
 	ID3D11PixelShader *shader = pPixelShader;
+#ifndef ALIASISOLATION_NO_PS_OVERRIDES
 	auto replaced = getReplacedShader(pPixelShader);
 	if (replaced == g_sharpenPsHandle && g_sharpenPsHandle.isValid() ) {
 		modifySharpenPass(context);
 		shader = ShaderRegistry::getPs(replaced);
 	}
+#endif
 
 	g_d3dHookOrig.PSSetShader(context, shader, ppClassInstances, NumClassInstances);
 
+#ifndef ALIASISOLATION_NO_PS_OVERRIDES
 	if (g_alienResources.cameraMotionPs == pPixelShader && g_alienResources.cameraMotionPs != nullptr)
 	{
 		g_alienResources.cbDefaultPSC = nullptr;
@@ -167,6 +172,7 @@ void STDMETHODCALLTYPE PSSetShader_hook(
 
 		g_alienResources.velocitySrv = srvFromTex((ID3D11Texture2D*)rtRes.p);
 	}
+#endif
 }
 
 // ----------------------------------------------------------------------------------------------------------------
@@ -180,13 +186,16 @@ void STDMETHODCALLTYPE VSSetShader_hook(
     UINT NumClassInstances)
 {
 	ID3D11VertexShader *shader = pVertexShader;
-	auto replaced = getReplacedShader(pVertexShader);
+#ifndef ALIASISOLATION_NO_VS_OVERRIDES
+    auto replaced = getReplacedShader(pVertexShader);
 	if (replaced.isValid()) {
 		shader = ShaderRegistry::getVs(replaced);
 	}
+#endif
 
 	g_d3dHookOrig.VSSetShader(context, shader, ppClassInstances, NumClassInstances);
 
+#ifndef ALIASISOLATION_NO_VS_OVERRIDES
 	if (g_alienResources.smaaVertexShader == pVertexShader && g_alienResources.smaaVertexShader != nullptr)
 	{
 		g_alienResources.cbDefaultXSC = nullptr;
@@ -197,6 +206,7 @@ void STDMETHODCALLTYPE VSSetShader_hook(
 		g_alienResources.cbDefaultVSC = nullptr;
 		context->VSGetConstantBuffers(1, 1, &g_alienResources.cbDefaultVSC);
 	}
+#endif
 }
 
 // ----------------------------------------------------------------------------------------------------------------
@@ -340,7 +350,7 @@ const DXGI_SWAP_CHAIN_DESC *pSwapChainDesc,
 
 void hookRendering()
 {
-	int ret;
+	int minhookRet;
 
 	HMODULE hModule = GetModuleHandleA("d3d11");
 	if (hModule)
@@ -348,11 +358,11 @@ void hookRendering()
 		g_d3dHooks.D3D11CreateDeviceAndSwapChain = (LPVOID)GetProcAddress(hModule, "D3D11CreateDeviceAndSwapChain");
 		if (g_d3dHooks.D3D11CreateDeviceAndSwapChain)
 		{
-			ret = MH_CreateHook(g_d3dHooks.D3D11CreateDeviceAndSwapChain, &D3D11CreateDeviceAndSwapChain_hook, (LPVOID*)&D3D11CreateDeviceAndSwapChain_orig);
+			minhookRet = MH_CreateHook(g_d3dHooks.D3D11CreateDeviceAndSwapChain, &D3D11CreateDeviceAndSwapChain_hook, (LPVOID*)&D3D11CreateDeviceAndSwapChain_orig);
 		}
 		else
 		{
-			ret = MH_ERROR_FUNCTION_NOT_FOUND;
+			minhookRet = MH_ERROR_FUNCTION_NOT_FOUND;
 		}
 	} 
 	else
@@ -362,10 +372,10 @@ void hookRendering()
 		return;
 	}
 
-	if (ret != MH_OK)
+	if (minhookRet != MH_OK)
 	{
 		char buf[256];
-		sprintf_s(buf, "MH_CreateHookApi() failed: %d\n", ret);
+		sprintf_s(buf, "MH_CreateHookApi() failed: %d\n", minhookRet);
 		MessageBoxA(NULL, buf, NULL, NULL);
 		return;
 	}

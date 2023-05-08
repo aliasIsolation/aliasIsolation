@@ -259,7 +259,7 @@ public:
 	}
 };
 
-void *load_modules_symbols(HANDLE process, DWORD pid) {
+void *load_modules_symbols(HANDLE process, DWORD /*pid*/) {
 	ModuleList modules;
 
 	DWORD cbNeeded;

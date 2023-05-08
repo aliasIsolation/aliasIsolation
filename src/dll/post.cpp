@@ -29,7 +29,7 @@ namespace
 // Hook for Cinematic Tools or whatever might want to render an overlay.
 // Hooking Present mostly works, but it's a highly contended hook, and apps have a tendency to remove each other's hooks.
 // For example, Fraps nukes the Present hook of Cinematic Tools.
-extern "C" __declspec(dllexport) void __cdecl aliasIsolation_hookableOverlayRender(ID3D11Device* device, ID3D11DeviceContext* context)
+extern "C" __declspec(dllexport) void __cdecl aliasIsolation_hookableOverlayRender(ID3D11Device* /*device*/, ID3D11DeviceContext* /*context*/)
 {
 // We can't compile inline assembly for a 64-bit build target.
 #ifndef _WIN64
@@ -104,7 +104,8 @@ void modifySharpenPass(ID3D11DeviceContext *const context)
 				texDesc.Usage = D3D11_USAGE_IMMUTABLE;
 				texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
 
-				D3D11_SUBRESOURCE_DATA sub;
+                D3D11_SUBRESOURCE_DATA sub;
+                ZeroMemory(&sub, sizeof(sub));
 				sub.pSysMem = data;
 				sub.SysMemPitch = x * n;
 				sub.SysMemSlicePitch = x * y * n;
@@ -194,7 +195,7 @@ void modifyGlareForPost(ID3D11DeviceContext *const context)
 	}
 }
 
-bool caOnDraw(ID3D11DeviceContext* context, ID3D11VertexShader* currentVs, ID3D11PixelShader* currentPs, std::function<void()> origDrawFn)
+bool caOnDraw(ID3D11DeviceContext* context, ID3D11VertexShader* /*currentVs*/, ID3D11PixelShader* currentPs, std::function<void()> origDrawFn)
 {
 	// Insert chromatic aberration after the sharpening pass
 	if (g_sharpenPsHandle.isValid() && ShaderRegistry::getPs(g_sharpenPsHandle) == currentPs && currentPs != nullptr) {
@@ -260,7 +261,7 @@ bool caOnDraw(ID3D11DeviceContext* context, ID3D11VertexShader* currentVs, ID3D1
 		context->PSSetConstantBuffers(0, 1, &constantBuffer);
 		context->PSSetShaderResources(0, 1, &srvs[0].p);
 
-		ProfileBlock profile("ca");
+		ProfileBlock profile("Chromatic Aberration");
 		context->Draw(3, 0);
 
 		aliasIsolation_hookableOverlayRender(g_device, context);
