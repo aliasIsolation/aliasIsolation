@@ -76,7 +76,7 @@ xcopy /Y /S /E data\textures %DESTINATION%\mods\aliasIsolation\data\textures
 
 echo.
 echo [Copying README file...]
-copy /a /y README.txt %DESTINATION%
+copy /a /y README.md %DESTINATION%
 
 goto END
 
