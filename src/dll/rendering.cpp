@@ -28,7 +28,6 @@
 
 ID3D11Device*			g_device = nullptr;
 ID3D11DeviceContext*	g_deferred_context = nullptr;
-Settings				g_settings;
 
 FrameConstants			g_frameConstants;
 AlienResources			g_alienResources;
@@ -73,7 +72,6 @@ void finishFrame() {
 	g_frameConstants.taaRanThisFrame = false;
 	ShaderRegistry::releaseUnused();
 	g_frameConstants.prevViewProjNoJitter = g_frameConstants.currViewProjNoJitter;
-	loadSettings(&g_settings);
 }
 
 // ----------------------------------------------------------------------------------------------------------------
@@ -233,7 +231,11 @@ HRESULT WINAPI ResizeBuffers_hook(
 
 	releaseResourceViews();
 
-	return g_d3dHookOrig.ResizeBuffers(swapChain, BufferCount, Width, Height, NewFormat, SwapChainFlags);
+	HRESULT hr = g_d3dHookOrig.ResizeBuffers(swapChain, BufferCount, Width, Height, NewFormat, SwapChainFlags);
+
+	Menu::HandleResize(swapChain);
+
+	return hr;
 }
 
 // ----------------------------------------------------------------------------------------------------------------

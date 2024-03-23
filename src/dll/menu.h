@@ -1,13 +1,14 @@
 #pragma once
 
 #include <d3d11.h>
+#include <atlbase.h>
 
 class Menu
 {
 public:
 	static LRESULT CALLBACK WndProcHandler(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
-	static void InitMenu(IDXGISwapChain* pSwapChain);
+	static void InitMenu(const CComPtr<IDXGISwapChain>& swapChain);
 	static void DrawMenu();
+	static void HandleResize(const CComPtr<IDXGISwapChain>& swapChain);
 	static void ShutdownMenu();
-	static HRESULT GetDeviceAndContextFromSwapChain(IDXGISwapChain* pSwapChain, ID3D11Device** ppDevice, ID3D11DeviceContext** ppContext);
 };
