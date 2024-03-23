@@ -12,31 +12,6 @@ namespace
 
 extern ID3D11Device* g_device;
 
-
-void ErrorDescription(HRESULT hr)
-{
-	if (FACILITY_WINDOWS == HRESULT_FACILITY(hr))
-	{
-		hr = HRESULT_CODE(hr);
-	}
-
-    TCHAR* szErrMsg = nullptr;
-
-	if (FormatMessage(
-		FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM,
-		NULL, 
-		hr, 
-		MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-		(LPTSTR)&szErrMsg, 0, NULL) != 0)
-	{
-		_tprintf(TEXT("[aliasIsolation::resourceUtil] %s"), szErrMsg);
-		MessageBoxA(NULL, "Encountered fatal error:\nError description: " + (char)szErrMsg, "Fatal Error", MB_ICONERROR);
-		LocalFree(szErrMsg);
-	}
-	else
-		_tprintf(TEXT("[aliasIsolation::resourceUtil - Could not find a description for error # %#x.]\n"), hr);
-}
-
 CComPtr<ID3D11Texture2D> texFromView(const CComPtr<ID3D11ShaderResourceView>& texView) {
 	CComPtr<ID3D11Resource> res = nullptr;
 	texView->GetResource(&res.p);
@@ -109,17 +84,12 @@ CComPtr<ID3D11ShaderResourceView> srvFromTex(const CComPtr<ID3D11Texture2D>& tex
 
 		desc.Format = texDesc.Format;
 		desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-		desc.Texture2D.MipLevels = -1;
+		desc.Texture2D.MipLevels = 0;
 
 		CComPtr<ID3D11ShaderResourceView> srv = nullptr;
 		HRESULT createSRVResult = g_device->CreateShaderResourceView(tex, &desc, &srv);
 
 		if (!SUCCEEDED(createSRVResult) && !srv) {
-			HRESULT deviceRemovedReason = g_device->GetDeviceRemovedReason();
-
-			// Convert the HRESULT code to a human-readable error message.
-			ErrorDescription(createSRVResult);
-			ErrorDescription(deviceRemovedReason);
 			DebugBreak();
 		}
 

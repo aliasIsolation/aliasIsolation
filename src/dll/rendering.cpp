@@ -141,7 +141,7 @@ void STDMETHODCALLTYPE PSSetShader_hook(
 	ID3D11PixelShader *shader = pPixelShader;
 #ifndef ALIASISOLATION_NO_PS_OVERRIDES
 	auto replaced = getReplacedShader(pPixelShader);
-	if (replaced == g_sharpenPsHandle && g_sharpenPsHandle.isValid() ) {
+	if (replaced == g_sharpenPsHandle && g_sharpenPsHandle.isValid()) {
 		modifySharpenPass(context);
 		shader = ShaderRegistry::getPs(replaced);
 	}

@@ -254,7 +254,7 @@ struct {
 	glm::mat4 ViewProj;
 	glm::mat4 SecondaryViewProj;
 } g_defaultXSC_cache;
-uint taaSampleIdxForXSC_cache = -1;
+uint taaSampleIdxForXSC_cache = 99U;
 
 
 bool g_disableXSC_cache = true;

@@ -49,8 +49,8 @@ echo.
 echo [Copying build products...]
 copy /y /b t2-output\%TUNDRATARGET%\aliasIsolation.dll %DESTINATION%\aliasIsolation.asi
 copy /y /b t2-output\%TUNDRATARGET%\aliasIsolation.pdb %DESTINATION%
-copy /y /b t2-output\%TUNDRATARGET%\cinematicTools.dll %DESTINATION%
-copy /y /b t2-output\%TUNDRATARGET%\cinematicTools.pdb %DESTINATION%
+rem copy /y /b t2-output\%TUNDRATARGET%\cinematicTools.dll %DESTINATION%
+rem copy /y /b t2-output\%TUNDRATARGET%\cinematicTools.pdb %DESTINATION%
 
 rem Don't try to create the mods folder if it already exists.
 if not exist "%DESTINATION%\mods" (

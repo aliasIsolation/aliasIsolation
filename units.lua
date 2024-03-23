@@ -59,7 +59,7 @@ local dll = SharedLibrary {
 	},
 }
 
-local cinematicTools = SharedLibrary {
+--[[local cinematicTools = SharedLibrary {
 	Name = "cinematicTools",
 	Depends = { minhook },
 	Includes = {
@@ -113,7 +113,7 @@ local cinematicTools = SharedLibrary {
 			Config = { "win64-*-release" }
 		}
 	}
-}
+}]]
 
 Default(dll)
 --Default(cinematicTools)

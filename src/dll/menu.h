@@ -2,13 +2,9 @@
 
 #include <d3d11.h>
 
-static bool g_aliasIsolation_mod_enabled = true;
-
 class Menu
 {
 public:
-	Menu();
-	~Menu();
 	static LRESULT CALLBACK WndProcHandler(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 	static void InitMenu(IDXGISwapChain* pSwapChain);
 	static void DrawMenu();
