@@ -9,12 +9,11 @@
 
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
+#include <atlbase.h>
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
-// Forward declare g_device, as it is populated in rendering.cpp.
-extern ID3D11Device*    g_device;
-extern Settings         g_settings;
+Settings g_settings;
 
 IDXGISwapChain*         g_swapChain = nullptr;
 ID3D11DeviceContext*    g_context = nullptr;
@@ -169,17 +168,11 @@ void Menu::DrawMenu() {
 
     // If the user wants to display the menu, then render it.
     if (g_showMenu) {
-        //g_showDemoWindow = true;
-
         static bool aliasIsolation_menu_showAboutWindow = false;
-        static float aliasIsolation_mod_sharpeningAmount = g_settings.sharpening;
-        static float aliasIsolation_mod_chromaticAberrationAmount = g_settings.chromaticAberration;
-
-        //ImGui::ShowDemoWindow(&g_showDemoWindow);
         
         if (aliasIsolation_menu_showAboutWindow) {
             if (ImGui::Begin("Alias Isolation - About", &aliasIsolation_menu_showAboutWindow, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings)) {
-                ImGui::TextColored(ImVec4(255, 170, 0, 1), "Alias Isolation 1.1.2 - Built on %s at %s", __DATE__, __TIME__);
+                    ImGui::TextColored(ImVec4(255, 170, 0, 1), "Alias Isolation 1.1.3 - Built on %s at %s", __DATE__, __TIME__);
                 ImGui::Text("Dear ImGui %s", ImGui::GetVersion());
                 ImGui::Separator();
                 ImGui::Text("Build information:");
@@ -214,7 +207,7 @@ void Menu::DrawMenu() {
         ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
 
         {
-            ImGui::Begin("Alias Isolation - Settings", NULL, ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings);
+                ImGui::Begin("Alias Isolation - Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoSavedSettings);
 
             if (ImGui::BeginMenuBar()) {
                 if (ImGui::BeginMenu("Help")) {
@@ -228,12 +221,19 @@ void Menu::DrawMenu() {
                 ImGui::EndMenuBar();
             }
 
-            ImGui::TextColored(ImVec4(255, 170, 0, 1), "Alias Isolation 1.1.2");
+                ImGui::TextColored(ImVec4(255, 170, 0, 1), "Alias Isolation 1.1.3");
 
             ImGui::Separator();
 
-            ImGui::SliderFloat("Sharpening Amount", &g_settings.sharpening, 0.0f, 1.0f, "%f");
-            ImGui::SliderFloat("Chromatic Aberration Amount", &g_settings.chromaticAberration, 0.0f, 1.0f, "%f");
+                ImGui::Checkbox("Sharpening", &g_settings.sharpeningEnabled);
+                if (g_settings.sharpeningEnabled) {
+                    ImGui::SliderFloat("Sharpening Amount", &g_settings.sharpening, 0.0f, 1.0f, "%.2f");
+                }
+
+                ImGui::Checkbox("Chromatic Aberration", &g_settings.chromaticAberrationEnabled);
+                if (g_settings.chromaticAberrationEnabled) {
+                    ImGui::SliderFloat("Chromatic Aberration Amount", &g_settings.chromaticAberration, 0.0f, 1.0f, "%.2f");
+                }
 
             if (ImGui::Button("Save Settings")) {
               saveSettings(g_settings);

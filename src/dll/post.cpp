@@ -74,13 +74,17 @@ void modifySharpenPass(ID3D11DeviceContext *const context)
 	static bool				resourcesCreated = false;
 
 	struct Constants {
-		float	logoIntensity;
-		float	sharpenAmount;
-		float	pad[2];
+		float logoIntensity;
+		float sharpenAmount;
+		// this must be a 4 byte type, as a regular bool can potentially break the HLSL shader logic by not initialising all of the memory.
+		BOOL sharpenEnabled;
+		float pad;
 	} constants = {
 		// Fade off the logo with time
 		(g_frameConstants.gameTime > 0.0f ? (1.f - glm::smoothstep(10.0f, 12.0f, g_frameConstants.gameTime)) : 0.0f),
-		g_settings.sharpening
+		g_settings.sharpening,
+		g_settings.sharpeningEnabled
+		// TODO! Is pad using initialised memory? If it isn't, this could cause cache misses.
 	};
 
 	if (!resourcesCreated) {
@@ -199,72 +203,78 @@ bool caOnDraw(ID3D11DeviceContext* context, ID3D11VertexShader* /*currentVs*/, I
 {
 	// Insert chromatic aberration after the sharpening pass
 	if (g_sharpenPsHandle.isValid() && ShaderRegistry::getPs(g_sharpenPsHandle) == currentPs && currentPs != nullptr) {
-		static ShaderHandle		chromaticAberrationPsHandle;
-		static bool				resourcesCreated = false;
-		static glm::uvec2		resourcesResolution;
-		static ID3D11Texture2D*	tempTex;
-		static ID3D11Buffer*	constantBuffer;
+		if (g_settings.chromaticAberrationEnabled) {
+			static ShaderHandle		chromaticAberrationPsHandle;
+			static bool				resourcesCreated = false;
+			static glm::uvec2		resourcesResolution;
+			static ID3D11Texture2D* tempTex;
+			static ID3D11Buffer* constantBuffer;
 
-		const uint screenWidth = g_frameConstants.screenWidth;
-		const uint screenHeight = g_frameConstants.screenHeight;
+			const uint screenWidth = g_frameConstants.screenWidth;
+			const uint screenHeight = g_frameConstants.screenHeight;
 
-		struct Constants {
-			float caAmount;
-			float pad[3];
-		} constants = {
-			g_settings.chromaticAberration
-		};
+			struct Constants {
+				float caAmount;
+				float pad[3];
+			} constants = {
+				g_settings.chromaticAberration
+			};
 
-		if (!resourcesCreated || resourcesResolution != glm::uvec2(screenWidth, screenHeight)) {
-			resourcesCreated = true;
-			resourcesResolution = glm::uvec2(screenWidth, screenHeight);
+			if (!resourcesCreated || resourcesResolution != glm::uvec2(screenWidth, screenHeight)) {
+				resourcesCreated = true;
+				resourcesResolution = glm::uvec2(screenWidth, screenHeight);
 
-			chromaticAberrationPsHandle = ShaderRegistry::addPixelShader("chromaticAberration_ps.hlsl");
+				chromaticAberrationPsHandle = ShaderRegistry::addPixelShader("chromaticAberration_ps.hlsl");
 
-			{
-				D3D11_TEXTURE2D_DESC texDesc;
-				ZeroMemory(&texDesc, sizeof(texDesc));
-				texDesc.Width = screenWidth;
-				texDesc.Height = screenHeight;
-				texDesc.MipLevels = 1;
-				texDesc.ArraySize = 1;
-				texDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-				texDesc.SampleDesc.Count = 1;
-				texDesc.SampleDesc.Quality = 0;
-				texDesc.Usage = D3D11_USAGE_DEFAULT;
-				texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
+				{
+					D3D11_TEXTURE2D_DESC texDesc;
+					ZeroMemory(&texDesc, sizeof(texDesc));
+					texDesc.Width = screenWidth;
+					texDesc.Height = screenHeight;
+					texDesc.MipLevels = 1;
+					texDesc.ArraySize = 1;
+					texDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+					texDesc.SampleDesc.Count = 1;
+					texDesc.SampleDesc.Quality = 0;
+					texDesc.Usage = D3D11_USAGE_DEFAULT;
+					texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
 
-				DX_CHECK(g_device->CreateTexture2D(&texDesc, nullptr, &tempTex));
+					DX_CHECK(g_device->CreateTexture2D(&texDesc, nullptr, &tempTex));
+				}
+
+				constantBuffer = createConstantBuffer(sizeof(Constants));
 			}
 
-			constantBuffer = createConstantBuffer(sizeof(Constants));
+			updateConstantBuffer(context, constantBuffer, &constants, sizeof(constants));
+
+			CComPtr<ID3D11RenderTargetView> targetRtv = nullptr;
+			context->OMGetRenderTargets(1, &targetRtv.p, nullptr);
+
+			CComPtr<ID3D11RenderTargetView> tempRtv = rtvFromTex(tempTex);
+			context->OMSetRenderTargets(1, &tempRtv.p, nullptr);
+
+			// Draw the sharpen pass now into the temporary RT
+			origDrawFn();
+
+			context->OMSetRenderTargets(1, &targetRtv.p, nullptr);
+
+			CComPtr<ID3D11ShaderResourceView> srvs[] = {
+				srvFromTex(tempTex)
+			};
+
+			context->PSSetShader(ShaderRegistry::getPs(chromaticAberrationPsHandle), nullptr, 0);
+			context->PSSetConstantBuffers(0, 1, &constantBuffer);
+			context->PSSetShaderResources(0, 1, &srvs[0].p);
+
+			ProfileBlock profile("Chromatic Aberration");
+			context->Draw(3, 0);
+
+			aliasIsolation_hookableOverlayRender(g_device, context);
 		}
-
-		updateConstantBuffer(context, constantBuffer, &constants, sizeof(constants));
-
-		CComPtr<ID3D11RenderTargetView> targetRtv = nullptr;
-		context->OMGetRenderTargets(1, &targetRtv.p, nullptr);
-
-		CComPtr<ID3D11RenderTargetView> tempRtv = rtvFromTex(tempTex);
-		context->OMSetRenderTargets(1, &tempRtv.p, nullptr);
-
-		// Draw the sharpen pass now into the temporary RT
-		origDrawFn();
-
-		context->OMSetRenderTargets(1, &targetRtv.p, nullptr);
-
-		CComPtr<ID3D11ShaderResourceView> srvs[] = {
-			srvFromTex(tempTex)
-		};
-
-		context->PSSetShader(ShaderRegistry::getPs(chromaticAberrationPsHandle), nullptr, 0);
-		context->PSSetConstantBuffers(0, 1, &constantBuffer);
-		context->PSSetShaderResources(0, 1, &srvs[0].p);
-
-		ProfileBlock profile("Chromatic Aberration");
-		context->Draw(3, 0);
-
-		aliasIsolation_hookableOverlayRender(g_device, context);
+		else {
+			// Draw the current frame without CA.
+			origDrawFn();
+		}
 
 		return true;
 	}
