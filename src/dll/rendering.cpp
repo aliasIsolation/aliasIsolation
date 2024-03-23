@@ -1,5 +1,3 @@
-#pragma warning(disable: 4996)	// 'sprintf': This function or variable may be unsafe.
-
 #include <windows.h>
 #include <d3d11.h>
 #include <cstdio>
