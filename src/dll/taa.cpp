@@ -340,10 +340,6 @@ HRESULT WINAPI Unmap_hook(
 					glm::mat4 jitterAdd;
 					jitterAdd[0][3] = sampleOffset.x;
 					jitterAdd[1][3] = sampleOffset.y;
-					jitterAdd[0][3] = sampleOffset.x;
-					jitterAdd[1][3] = sampleOffset.y;
-					jitterAdd[0][3] = sampleOffset.x;
-					jitterAdd[1][3] = sampleOffset.y;
 
                     xsc->SecondaryProj = g_defaultXSC_cache.SecondaryProj * jitterAdd;
                     xsc->ViewProj = g_defaultXSC_cache.ViewProj * jitterAdd;
@@ -387,12 +383,13 @@ HRESULT WINAPI Unmap_hook(
 
 			const glm::vec2 sampleOffset = getFrameJitter();
 
-			glm::mat4 jitterRemove;
+			glm::dmat4 jitterRemove;
 			jitterRemove[0][3] = -1.0f * sampleOffset.x;
 			jitterRemove[1][3] = -1.0f * sampleOffset.y;
 
-			const glm::mat4 shadowJitterRemove = g_frameConstants.currViewProjNoJitter * jitterRemove * glm::mat4(g_frameConstants.currInvViewProjNoJitter);
-			psc->Spotlight0_Transform = shadowJitterRemove * psc->Spotlight0_Transform;
+			// Using single-precision on this calculation was introducing shadow flickering, due to the jitter not being accurately removed from the shadow pass.
+			const glm::dmat4 shadowJitterRemove = glm::dmat4(g_frameConstants.currViewProjNoJitter) * jitterRemove * g_frameConstants.currInvViewProjNoJitter;
+			psc->Spotlight0_Transform = glm::mat4(shadowJitterRemove) * psc->Spotlight0_Transform;
 
 			g_alienResources.mappedCbDefaultPSC = nullptr;
 		}
