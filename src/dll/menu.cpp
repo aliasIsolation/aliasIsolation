@@ -146,7 +146,7 @@ void Menu::DrawMenu() {
 
             if (aliasIsolation_menu_showAboutWindow) {
                 if (ImGui::Begin("Alias Isolation - About", &aliasIsolation_menu_showAboutWindow, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings)) {
-                    ImGui::TextColored(ImVec4(255, 170, 0, 1), "Alias Isolation 1.1.3 - Built on %s at %s", __DATE__, __TIME__);
+                    ImGui::TextColored(ImVec4(255, 170, 0, 1), "Alias Isolation 1.1.4 - Built on %s at %s", __DATE__, __TIME__);
                     ImGui::Text("Dear ImGui %s", ImGui::GetVersion());
                     ImGui::Separator();
                     ImGui::Text("Build information:");
@@ -195,7 +195,7 @@ void Menu::DrawMenu() {
                     ImGui::EndMenuBar();
                 }
 
-                ImGui::TextColored(ImVec4(255, 170, 0, 1), "Alias Isolation 1.1.3");
+                ImGui::TextColored(ImVec4(255, 170, 0, 1), "Alias Isolation 1.1.4");
 
                 ImGui::Separator();
 
