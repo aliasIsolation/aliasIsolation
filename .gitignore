@@ -1,6 +1,4 @@
 settings.txt
-.tundra2.*
-t2-output
 
 # Ignore the contents of boost.
 src/external/boost/*
@@ -9,13 +7,28 @@ src/external/boost/*
 !src/external/boost/README.txt
 
 compileTaa.cmd
-/src/external/temp/nana
-/src/external/glm/glm/out/build/x64-Debug
-/src/external/nana/build/vc2019/.vs/nana/v16
-src/external/glm/glm/out
-src/external/nana/out
 release
 debug
 .vs
 .idea
+.TMP
 /vcpkg_installed
+
+CMakeLists.txt.user
+CMakeCache.txt
+CMakeFiles
+CMakeScripts
+Testing
+Makefile
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+CTestTestfile.cmake
+_deps
+build
+
+.cache
+.vscode
+
+data/shaders/compiled
+!data/shaders/compiled/taa_cs.hlsl

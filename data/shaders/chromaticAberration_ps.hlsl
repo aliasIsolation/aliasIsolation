@@ -24,7 +24,7 @@ cbuffer Constants : register(b0)
 	float g_pad2;
 }
 
-PSOutput mainPS(in PSInput IN)
+PSOutput main(in PSInput IN)
 {
 	PSOutput OUT = (PSOutput)0;
 

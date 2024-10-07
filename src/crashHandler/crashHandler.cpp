@@ -9,11 +9,7 @@
 // 'typedef ': ignored on left of '' when no variable is declared
 #pragma warning(disable : 4091)
 
-// Some versions of imagehlp.dll lack the proper packing directives themselves
-// so we need to do it.
-#pragma pack( push, before_imagehlp, 8 )
 #include <imagehlp.h>
-#pragma pack( pop, before_imagehlp )
 
 #include <vector>
 #include <iostream>
@@ -56,7 +52,7 @@ bool WriteFullDump(HANDLE hProc, EXCEPTION_POINTERS *ep, const char* filePath)
 	}
 	else
 	{
-		MINIDUMP_EXCEPTION_INFORMATION mdei; 
+		MINIDUMP_EXCEPTION_INFORMATION mdei{}; 
 
 		mdei.ThreadId           = GetCurrentThreadId(); 
 		mdei.ExceptionPointers  = ep; 

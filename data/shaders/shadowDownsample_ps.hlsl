@@ -65,7 +65,7 @@ struct PSOutput
 	float4 param0 : SV_Target0;
 };
 
-PSOutput mainPS(in PSInput IN)
+PSOutput main(in PSInput IN)
 {
 	PSOutput OUT = (PSOutput)0;
 

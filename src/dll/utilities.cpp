@@ -5,7 +5,6 @@
 
 std::string rootDir;
 
-
 std::string getRootDirectory() {
 	// Only fetch the root directory once.
 	if (rootDir.empty())

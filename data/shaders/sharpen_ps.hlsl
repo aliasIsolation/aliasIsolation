@@ -40,7 +40,7 @@ float calculateLuma(float3 col)
 	return dot(float3(0.299, 0.587, 0.114), col);
 }
 
-PSOutput mainPS(in PSInput IN)
+PSOutput main(in PSInput IN)
 {
 	PSOutput OUT = (PSOutput)0;
 
