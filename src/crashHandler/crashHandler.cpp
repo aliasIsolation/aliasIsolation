@@ -9,11 +9,7 @@
 // 'typedef ': ignored on left of '' when no variable is declared
 #pragma warning(disable : 4091)
 
-// Some versions of imagehlp.dll lack the proper packing directives themselves
-// so we need to do it.
-#pragma pack( push, before_imagehlp, 8 )
 #include <imagehlp.h>
-#pragma pack( pop, before_imagehlp )
 
 #include <vector>
 #include <iostream>
@@ -23,10 +19,10 @@
 #include <sstream>
 
 struct module_data {
-	std::string image_name;
-	std::string module_name;
-	void *base_address;
-	DWORD load_size;
+	std::string image_name = "";
+	std::string module_name = "";
+	void *base_address = nullptr;
+	DWORD load_size = 0L;
 };
 typedef std::vector<module_data> ModuleList;
 
@@ -56,7 +52,7 @@ bool WriteFullDump(HANDLE hProc, EXCEPTION_POINTERS *ep, const char* filePath)
 	}
 	else
 	{
-		MINIDUMP_EXCEPTION_INFORMATION mdei; 
+		MINIDUMP_EXCEPTION_INFORMATION mdei{}; 
 
 		mdei.ThreadId           = GetCurrentThreadId(); 
 		mdei.ExceptionPointers  = ep; 
@@ -65,7 +61,16 @@ bool WriteFullDump(HANDLE hProc, EXCEPTION_POINTERS *ep, const char* filePath)
 		BOOL Result = MiniDumpWriteDump( hProc,
 			GetProcessId(hProc),
 			hFile,
-			(MINIDUMP_TYPE)(MiniDumpNormal),
+#ifdef _DEBUG
+			/* 
+				Do a full memory dump if we are in debug build mode (this will create massive dump files 1GB+, but is useful for debugging because it
+				populates variable data).
+			*/
+			(MINIDUMP_TYPE)(MiniDumpWithFullMemory | MiniDumpWithFullMemoryInfo | MiniDumpWithHandleData | MiniDumpWithUnloadedModules | MiniDumpWithThreadInfo),
+#else
+			// Otherwise do a normal memory dump containing a stack trace for all threads.
+			(MINIDUMP_TYPE)MiniDumpNormal,
+#endif
 			&mdei,
 			nullptr,
 			nullptr );
@@ -250,7 +255,7 @@ public:
 	}
 };
 
-void *load_modules_symbols(HANDLE process, DWORD pid) {
+void *load_modules_symbols(HANDLE process, DWORD /*pid*/) {
 	ModuleList modules;
 
 	DWORD cbNeeded;

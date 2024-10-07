@@ -42,7 +42,7 @@ struct VSOutput
 	float4 param2 : SV_Position;
 };
 
-VSOutput mainVS(in VSInput IN)
+VSOutput main(in VSInput IN)
 {
 	VSOutput OUT = (VSOutput)0;
 	

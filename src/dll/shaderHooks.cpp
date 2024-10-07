@@ -93,13 +93,14 @@ HRESULT WINAPI CreatePixelShader_hook(void* thisptr, const char* bytecode, SIZE_
 				return res;
 			}
 
-			// RGBM encode pixel shader
+			// DoF encode pixel shader
 			if (hash[0] == 0x29ed6504 && hash[1] == 0x77d5438c && hash[2] == 0xe9c206c8 && hash[3] == 0xb1f27ba2)
 			{
 				g_alienResources.dofEncodePs = *pixelShader;
 				return res;
 			}
 
+            // Camera motion pixel shader
 			if (hash[0] == 0x1fb3edd4 && hash[1] == 0xe984323b && hash[2] == 0x11bcf154 && hash[3] == 0x5a029c94)
 			{
 				g_alienResources.cameraMotionPs = *pixelShader;
@@ -109,7 +110,7 @@ HRESULT WINAPI CreatePixelShader_hook(void* thisptr, const char* bytecode, SIZE_
 			// Replace the original SMAA spatial pass by a post-sharpening filter
 			if (hash[0] == 0x02b5231b && hash[1] == 0x8b3879b8 && hash[2] == 0x7db9bc8d && hash[3] == 0xf46a9d78)
 			{
-				g_sharpenPsHandle = ShaderRegistry::addPixelShader("sharpen_ps.hlsl");
+				g_sharpenPsHandle = ShaderRegistry::addPixelShader("sharpen_ps.cso");
 				replacePixelShader(*pixelShader, g_sharpenPsHandle);
 				return res;
 			}
@@ -117,21 +118,21 @@ HRESULT WINAPI CreatePixelShader_hook(void* thisptr, const char* bytecode, SIZE_
 			// Replace the shadow-map linearize shader with one with better numerical stability. The original flickers in vanilla Alien.
 			if (hash[0] == 0x3c7b9d08 && hash[1] == 0x7b3adf54 && hash[2] == 0x3bfc6b9d && hash[3] == 0x1b0ec92e)
 			{
-				replacePixelShader(*pixelShader, ShaderRegistry::addPixelShader("shadowLinearize_ps.hlsl"));
+				replacePixelShader(*pixelShader, ShaderRegistry::addPixelShader("shadowLinearize_ps.cso"));
 				return res;
 			}
 
 			// Ditto, for shadow downsampling.
 			if (hash[0] == 0x8d485646 && hash[1] == 0x7d707454 && hash[2] == 0x95bf6cb1 && hash[3] == 0x09b85460)
 			{
-				replacePixelShader(*pixelShader, ShaderRegistry::addPixelShader("shadowDownsample_ps.hlsl"));
+				replacePixelShader(*pixelShader, ShaderRegistry::addPixelShader("shadowDownsample_ps.cso"));
 				return res;
 			}
 
 			// Replace the bloom merge PS
 			if (hash[0] == 0xc0fbe484 && hash[1] == 0x2d952c03 && hash[2] == 0x993de248 && hash[3] == 0x56ad9263)
 			{
-				replacePixelShader(*pixelShader, ShaderRegistry::addPixelShader("bloomMerge_ps.hlsl"));
+				replacePixelShader(*pixelShader, ShaderRegistry::addPixelShader("bloomMerge_ps.cso"));
 				return res;
 			}
 		}
@@ -155,23 +156,27 @@ HRESULT WINAPI CreateVertexShader_hook(void* thisptr, const char* bytecode, SIZE
 			// Replace the VS for the main post pass to kill barrel distortion
 			if (hash[0] == 0x40af2521 && hash[1] == 0x0abe7ef9 && hash[2] == 0x8cafc30b && hash[3] == 0xa48433af)
 			{
-				replaceVertexShader(*vertexShader, ShaderRegistry::addVertexShader("mainPost_vs.hlsl"));
+				replaceVertexShader(*vertexShader, ShaderRegistry::addVertexShader("mainPost_vs.cso"));
 				return res;
 			}
 
+#ifndef ALIASISOLATION_NO_SMAA_VS
 			// SMAA vertex shader
 			if (hash[0] == 0x021e3541 && hash[1] == 0xc8808c25 && hash[2] == 0x81beb6be && hash[3] == 0x342bfddd)
 			{
 				g_alienResources.smaaVertexShader = *vertexShader;
 				return res;
 			}
+#endif
 
+#ifndef ALIASISOLATION_NO_RGBM_VS
 			// RGBM encode vertex shader
 			if (hash[0] == 0xa851671d && hash[1] == 0xbe79cf68 && hash[2] == 0x2e6d9376 && hash[3] == 0x567ba13c)
 			{
 				g_alienResources.rgbmEncodeVs = *vertexShader;
 				return res;
 			}
+#endif
 		}
 	}
 

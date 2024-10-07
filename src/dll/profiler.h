@@ -23,7 +23,7 @@ public:
 
     static Profiler GlobalProfiler;
 
-    void Initialize(ID3D11Device* device, ID3D11DeviceContext* immContext);
+    void Initialize(ID3D11Device* profilerDevice, ID3D11DeviceContext* immContext);
 
     void StartProfile(const std::string& name);
     void EndProfile(const std::string& name);

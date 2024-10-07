@@ -9,6 +9,7 @@ struct FnHookHandles {
 	void* PSSetShader = nullptr;
 	void* VSSetShader = nullptr;
 	void* ResizeBuffers = nullptr;
+	void* Present = nullptr;
 	void* CreatePixelShader = nullptr;
 	void* CreateVertexShader = nullptr;
 	void* D3D11CreateDeviceAndSwapChain = nullptr;

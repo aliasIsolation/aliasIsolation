@@ -10,26 +10,31 @@
 //
 //=================================================================================================
 
+#include "common.h"
 #include "profiler.h"
+#include <format>
 
 using std::string;
 using std::map;
 
-#ifdef _DEBUG
+#ifdef ALIASISOLATION_ENABLE_PROFILER
 	#define PROFILER_ENABLE 1
 #else
 	#define PROFILER_ENABLE 0
 #endif
 
-#define DXCall(EXPR) { HRESULT ret = EXPR; if (ret != S_OK) { MessageBoxA(NULL, #EXPR " failed.", NULL, NULL); DebugBreak(); } }
-
 // == Profiler ====================================================================================
+
+#if PROFILER_ENABLE
+// ImGui menu profiling variables.
+extern std::string g_profilerStats;
+#endif
 
 Profiler Profiler::GlobalProfiler;
 
-void Profiler::Initialize(ID3D11Device* device, ID3D11DeviceContext* immContext)
+void Profiler::Initialize(ID3D11Device* profilerDevice, ID3D11DeviceContext* immContext)
 {
-    this->device = device;
+    this->device = profilerDevice;
     this->context = immContext;
 }
 
@@ -45,13 +50,14 @@ void Profiler::StartProfile(const string& name)
     {
         // Create the queries
         D3D11_QUERY_DESC desc;
+        ZeroMemory(&desc, sizeof(D3D11_QUERY_DESC));
         desc.Query = D3D11_QUERY_TIMESTAMP_DISJOINT;
         desc.MiscFlags = 0;
-        DXCall(device->CreateQuery(&desc, &profileData.DisjointQuery[currFrame]));
+        DX_CHECK(device->CreateQuery(&desc, &profileData.DisjointQuery[currFrame]));
 
         desc.Query = D3D11_QUERY_TIMESTAMP;
-        DXCall(device->CreateQuery(&desc, &profileData.TimestampStartQuery[currFrame]));
-        DXCall(device->CreateQuery(&desc, &profileData.TimestampEndQuery[currFrame]));
+        DX_CHECK(device->CreateQuery(&desc, &profileData.TimestampStartQuery[currFrame]));
+        DX_CHECK(device->CreateQuery(&desc, &profileData.TimestampEndQuery[currFrame]));
     }
 
     // Start a disjoint query first
@@ -81,12 +87,8 @@ void Profiler::EndProfile(const string& name)
 
 void Profiler::EndFrame()
 {
-    currFrame = (currFrame + 1) % QueryLatency;    
-
-    float queryTime = 0.0f;
-
-	printf("\r");
-	int charsPrinted = 0;
+    currFrame = (currFrame + 1) % QueryLatency;
+    g_profilerStats.clear();
 
     // Iterate over all of the profiles
     ProfileMap::iterator iter;
@@ -112,8 +114,7 @@ void Profiler::EndFrame()
         while(context->GetData(profile.DisjointQuery[currFrame], &disjointData, sizeof(disjointData), 0) != S_OK);
 
         double time = 0.0;
-        if(disjointData.Disjoint == FALSE)
-        {
+        if (disjointData.Disjoint == FALSE) {
             UINT64 delta = endTime - startTime;
             double frequency = static_cast<double>(disjointData.Frequency);
             time = (delta / frequency) * 1000.0;
@@ -125,23 +126,18 @@ void Profiler::EndFrame()
 		}
 
 		profile.lastValue = time;
-        charsPrinted += printf("%s: %2.2fms ", (*iter).first.c_str(), time);
+        
+        g_profilerStats += std::format("{}: {:2.2f}ms\n", (*iter).first, time);
     }
-
-	for (int i = charsPrinted; i < 79; ++i) {
-		putc(' ', stdout);
-	}
-
-	fflush(stdout);
 }
 
 #else
 
-void Profiler::StartProfile(const string& name)
+void Profiler::StartProfile(const string& /*name*/)
 {
 }
 
-void Profiler::EndProfile(const string& name)
+void Profiler::EndProfile(const string& /*name*/)
 {
 }
 

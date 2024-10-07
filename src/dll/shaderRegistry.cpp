@@ -1,5 +1,5 @@
 #include "shaderRegistry.h"
-#include "dllParams.h"
+#include "utilities.h"
 
 #include <mutex>
 #include <map>
@@ -8,10 +8,9 @@
 
 #include <windows.h>
 #include <d3d11.h>
-#include "D3Dcompiler.h"
+#include <d3dcompiler.h>
 
 
-extern SharedDllParams	g_dllParams;
 extern ID3D11Device*	g_device;
 
 namespace ShaderRegistry
@@ -45,7 +44,7 @@ namespace ShaderRegistry
 
 
 	ShaderHandle addPixelShader(std::string path) {
-		path = (std::string(g_dllParams.aliasIsolationRootDir) + "/data/shaders/") + path;
+		path = getDataFilePath("shaders\\" + path, true);
 
 		mutex.lock();
 		{
@@ -64,8 +63,8 @@ namespace ShaderRegistry
 	}
 
 	ShaderHandle addVertexShader(std::string path) {
-		path = (std::string(g_dllParams.aliasIsolationRootDir) + "/data/shaders/") + path;
-
+		path = getDataFilePath("shaders\\" + path, true);
+		
 		mutex.lock();
 		{
 			auto existing = vsPathToHandle.find(path);
@@ -83,7 +82,7 @@ namespace ShaderRegistry
 	}
 
 	ShaderHandle addComputeShader(std::string path) {
-		path = (std::string(g_dllParams.aliasIsolationRootDir) + "/data/shaders/") + path;
+		path = getDataFilePath("shaders\\" + path, true);
 
 		mutex.lock();
 		{
@@ -111,8 +110,9 @@ namespace ShaderRegistry
 		for (int retry = 0; retry < 100; ++retry, Sleep(10)) {
 			sourceBlob.clear();
 
-			FILE* f = fopen(reloadInfo->path.c_str(), "rb");
-			if (!f) {
+            FILE* f;
+			errno_t err = fopen_s(&f, reloadInfo->path.c_str(), "rb");
+			if (err != 0) {
 				continue;
 			}
 
@@ -121,7 +121,7 @@ namespace ShaderRegistry
 			fseek(f, 0, SEEK_SET);
 
 			sourceBlob.resize(fileSize);
-			const long rb = fread(sourceBlob.data(), 1, fileSize, f);
+			const long rb = fread_s(sourceBlob.data(), sourceBlob.size(), 1, fileSize, f);
 
 			fclose(f);
 			if (rb == fileSize) {
@@ -154,9 +154,23 @@ namespace ShaderRegistry
 											"mainVS";
 
 			HRESULT hr = D3DCompile(
-				sourceBlob.data(), sourceBlob.size(), nullptr,
-				nullptr, nullptr, entryPoint, profile,
-				D3DCOMPILE_ENABLE_STRICTNESS, 0, &shaderBlob, &errorBlob
+				sourceBlob.data(), 
+				sourceBlob.size(), 
+				nullptr, 
+				nullptr, 
+				nullptr, 
+				entryPoint, 
+				profile, 
+#ifdef _DEBUG
+				// Do not optimise shaders during compilation when we are targeting debug.
+				D3DCOMPILE_ENABLE_STRICTNESS,
+#else
+				// Otherwise, enable maximum optimisations for shaders during compilation.
+				D3DCOMPILE_ENABLE_STRICTNESS | D3DCOMPILE_OPTIMIZATION_LEVEL3,
+#endif
+				0, 
+				&shaderBlob, 
+				&errorBlob
 			);
 
 			if (FAILED(hr)) {
@@ -221,6 +235,7 @@ namespace ShaderRegistry
 
 	void reloadIfModified(ShaderReloadInfo *const reloadInfo, CompiledShader *const shader) {
 		WIN32_FILE_ATTRIBUTE_DATA stat;
+        ZeroMemory(&stat, sizeof(stat));
 		if (GetFileAttributesExA(reloadInfo->path.c_str(), GetFileExInfoStandard, &stat)) {
 			if (stat.ftLastWriteTime.dwHighDateTime != reloadInfo->lastModified.dwHighDateTime ||
 				stat.ftLastWriteTime.dwLowDateTime  != reloadInfo->lastModified.dwLowDateTime)

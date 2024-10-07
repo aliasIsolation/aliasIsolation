@@ -1,1 +1,0 @@
-Taken from http://cinetools.xyz/games/ and then modified slightly to work Alias Isolation. Credit for the awesome work goes to Matti Hietanen.

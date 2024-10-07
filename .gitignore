@@ -1,5 +1,34 @@
 settings.txt
-.tundra2.*
-t2-output
-src/external/boost
+
+# Ignore the contents of boost.
+src/external/boost/*
+# Do not ignore our build_boost.bat script or the README.txt file
+!src/external/boost/build_boost.bat
+!src/external/boost/README.txt
+
 compileTaa.cmd
+release
+debug
+.vs
+.idea
+.TMP
+/vcpkg_installed
+
+CMakeLists.txt.user
+CMakeCache.txt
+CMakeFiles
+CMakeScripts
+Testing
+Makefile
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+CTestTestfile.cmake
+_deps
+build
+
+.cache
+.vscode
+
+data/shaders/compiled
+!data/shaders/compiled/taa_cs.hlsl

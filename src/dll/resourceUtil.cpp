@@ -12,7 +12,6 @@ namespace
 
 extern ID3D11Device* g_device;
 
-
 CComPtr<ID3D11Texture2D> texFromView(const CComPtr<ID3D11ShaderResourceView>& texView) {
 	CComPtr<ID3D11Resource> res = nullptr;
 	texView->GetResource(&res.p);
@@ -85,12 +84,14 @@ CComPtr<ID3D11ShaderResourceView> srvFromTex(const CComPtr<ID3D11Texture2D>& tex
 
 		desc.Format = texDesc.Format;
 		desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-		desc.Texture2D.MipLevels = -1;
+		// Turns out "-1" actually gets converted to "(UINT_MAX + 1) - 1" and is a portable way of getting all bits set to 1,
+		// static_cast makes the compiler ignore this as a potential issue.
+		desc.Texture2D.MipLevels = static_cast<UINT>(-1);
 
 		CComPtr<ID3D11ShaderResourceView> srv = nullptr;
-		g_device->CreateShaderResourceView(tex, &desc, &srv);
+		HRESULT createSRVResult = g_device->CreateShaderResourceView(tex, &desc, &srv);
 
-		if (!srv) {
+		if (!SUCCEEDED(createSRVResult) && !srv) {
 			DebugBreak();
 		}
 
