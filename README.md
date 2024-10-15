@@ -3,17 +3,12 @@ Alias Isolation is a mod for Alien: Isolation. It adds temporal anti-aliasing in
 
 The mod works by injecting itself into the executable, and hijacking D3D11 calls. It replaces a few shaders, and injects some of its own rendering.
 
-This fork aims to maintain the mod, resolve existing issues, add new functionality and, eventually, port the mod to new platforms.
-
 Suggestions for new features or pull requests for this mod are welcome!
 
 ## Installation instructions
-Download the latest d3d11 x86 release of Ultimate ASI Loader from here:
-https://github.com/ThirteenAG/Ultimate-ASI-Loader/releases/download/Win32-latest/d3d11-Win32.zip
-
-Extract the following files from the `AliasIsolation.7z` archive, obtainable via the releases page, to the folder where Alien: Isolation is installed (you should be in a folder that has a file called `AI.exe`):
-1. Extract the `mods` folder to your Alien: Isolation folder.
-2. Extract `aliasIsolation.asi` and copy `d3d11.dll` to your Alien: Isolation folder.
+Extract the following files from the `AliasIsolation-<version>.7z` archive, obtainable via the releases page, to the folder where _Alien: Isolation_ is installed (you should be in a folder that has a file called `AI.exe`):
+1. Extract the `mods` folder to your _Alien: Isolation_ folder.
+2. Extract `aliasIsolation.asi` and `d3d11.dll` to your _Alien: Isolation_ folder.
 
 > [!NOTE]
 > If you're using Linux and want to play the game via an older version of Proton (version < Proton 8), you _might_ need to perform an extra step to let Proton know that you want it to use the ASI loader:
@@ -24,35 +19,34 @@ These options must be set to the correct values for the mod to work properly.
 
 | Option | Value |
 | --- | --- |
-| Anti-aliasing | SMAA T1x |
-| Chromatic Aberration | Disabled |
-| Motion Blur | Enabled |
+| Anti-aliasing | **SMAA T1x** |
+| Chromatic Aberration | **Disabled** |
+| Motion Blur | **Enabled** |
 
 ## Runtime settings
 To disable the mod at runtime, hit `Ctrl+Delete`. To re-enable it, hit `Ctrl+Insert`.
+To show/hide the mod menu at runtime, hit `DELETE`.
 
 ## Known issues
-* No support for the unofficial Rift mode (could change in the future).
-* RenderDoc, Epic Games Overlay, Windows Auto HDR, or any other software which also uses API hooking may break the rendering.
-* SLI/CrossFire performance will probably be badly impacted, and depending on what the driver does, might also suffer from glitchy rendering.
-* Some special effects can appear thinner or exhibit ghosting. Sparks are known to be eroded.
-* While the motion tracker is in use, the Depth of Field shader seems to cause the tracker's LED highlights to appear, along the top of the screen.
-* (Under investigation) The Epic Games Store release of the game crashes with a fatal error at "aliasIsolation_hookableOverlayRender".
-* You are unable to move the mouse in the Alias Isolation UI while the game is unpaused. You can use the arrow keys to change settings in the menu, or pause the game which will unfreeze the mouse and allow you to adjust the settings.
-* (Planned) No support for the integrated Cinematic Tools.
-* Some UI backgrounds may become red in colour, which could be an issue with the original shaders.
+* No support for the _MotherVR_ mod.
+* RenderDoc, Windows Auto HDR, MSI Afterburner, Rivatuner, or any other software which also uses API hooking may break the rendering.
+* Some particle effects can appear thinner or exhibit ghosting. Sparks and embers are known to be eroded.
+* Signs with text can noticeably "fade in" when the player's camera is stationary.
+* While the motion tracker is in use, the _Depth of Field_ shader seems to cause the tracker's LED highlights to appear along the edges of the screen.
+* The _Epic Games Store_ release of the game may crash with a fatal error at `aliasIsolation_hookableOverlayRender`.
 
 ## Building from source
-You need to have Visual Studio 2022. Community Edition works fine.
+1. Clone this repo using Git.
+2. Install CMake, Visual Studio 2022 (Community edition is enough) and choose the C++ packages (including all the Clang support packages) in the installer.
+3. Configure the project using CMake's GUI to use Visual Studio 2022, an x86 target (very important!) and `ClangCL` as the toolset parameter.
+5. Modify `tracy`'s `CMakeLists.txt` to force `TRACY_ENABLE` to `OFF` - your game will run out of memory from the performance profiler otherwise.
+6. Go to the output directory you chose using CMake, open the solution (`.sln`) in Visual Studio and build for `RelWithDebInfo`.
+7. The compiled shaders (`.cso`) will be in the output directory, collect these files to create the below structure (have a look at a recent release to see how they're packaged if needs be).
 
-Download **Boost 1.81** and extract it into `src/external/boost`. For example, you should have `config.hpp` in `src/external/boost/boost`.
-
-If you want to just build the binaries, but don't care about Visual Studio solution files:
-* (Release mode) Just run `compile.cmd`. The output will be in the folder `t2-output/win32-msvc-release-default`.
-* (Debug mode) Just run `compile_debug.cmd`. The output will be in the folder`t2-output/win32-msvc-debug-default`.
-
-If you want to build a release (i.e. have it save the binaries and put all the files needed to run the mod in a single folder):
-* (Release mode) Just run `release.cmd`. The output will be in the folder `release`.
-* (Debug mode) Just run `release_debug.cmd`. The output will be in the folder `debug`.
-
-If you'd like to open the project in Visual Studio, run `sln-vs2022.cmd`, and then open `t2-output/aliasIsolation.sln`.
+* `mods`
+  * `aliasIsolation`
+      * `data`
+          * `shaders`
+              * `.cso` files
+          * `textures`
+              * `aliasIsolationLogo.png`
